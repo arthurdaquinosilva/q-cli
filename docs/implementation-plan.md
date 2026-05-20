@@ -26,7 +26,7 @@
 - **Done when:** `pnpm dev --connection postgresql://user:pass@localhost/db` connects and displays connection status; wrong DSN shows a readable error
 
 ### A.4 — Run a query, display raw output
-- [ ] Add a basic single-line text input (no vim mode yet). On Enter, execute the query against the connected DB and display the raw JSON result in the terminal.
+- [x] Add a basic single-line text input (no vim mode yet). On Enter, execute the query against the connected DB and display the raw JSON result in the terminal.
 - **Depends on:** A.3
 - **Done when:** `SELECT 1` runs and the result appears in the terminal
 
