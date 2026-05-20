@@ -21,7 +21,7 @@
 - **Done when:** `pnpm dev` renders an Ink component in the terminal; process exits cleanly on quit
 
 ### A.3 — PostgreSQL connection
-- [ ] Accept a `--connection <dsn>` CLI argument. On startup, attempt to connect to PostgreSQL using `pg`. Show a success or error message in the Ink UI.
+- [x] Accept a `--connection <dsn>` CLI argument. On startup, attempt to connect to PostgreSQL using `pg`. Show a success or error message in the Ink UI.
 - **Depends on:** A.2
 - **Done when:** `pnpm dev --connection postgresql://user:pass@localhost/db` connects and displays connection status; wrong DSN shows a readable error
 
