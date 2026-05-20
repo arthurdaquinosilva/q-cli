@@ -1,7 +1,7 @@
 import { Client } from 'pg';
 
 export type ConnectionState =
-  | { status: 'connected'; client: Client; database: string; host: string }
+  | { status: 'connected'; client: Client; database: string; host: string; user: string }
   | { status: 'error'; message: string };
 
 export async function connect(dsn: string): Promise<ConnectionState> {
@@ -16,6 +16,7 @@ export async function connect(dsn: string): Promise<ConnectionState> {
       client,
       database: res.rows[0].current_database,
       host: client.host,
+      user: client.user ?? 'unknown',
     };
   } catch (err) {
     return {

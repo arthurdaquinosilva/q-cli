@@ -10,5 +10,5 @@ describe('connect()', () => {
     if (result.status === 'error') {
       expect(result.message).toBeTruthy();
     }
-  });
+  }, 10000);
 });

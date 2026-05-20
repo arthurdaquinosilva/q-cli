@@ -35,7 +35,7 @@
 ## Phase B: Core UX — input, tables, history
 
 ### B.1 — Beautiful table rendering
-- [ ] Replace raw JSON output with a formatted table using a Rich-style Ink component. Handle empty results, single-row results, and multi-row results.
+- [x] Replace raw JSON output with a formatted table using a Rich-style Ink component. Handle empty results, single-row results, and multi-row results.
 - **Depends on:** A.4
 - **Done when:** `SELECT id, name FROM users` renders as a clean, aligned table with headers
 
@@ -55,7 +55,7 @@
 - **Done when:** after restarting the CLI, up-arrow recalls queries from the previous session
 
 ### B.5 — Vim mode in the prompt
-- [ ] Implement vim normal/insert mode for the prompt input, adapted from Gemini CLI's `vim-buffer-actions.ts`. Support: mode toggle (`Escape` / `i`), navigation (`h`, `j`, `k`, `l`, `w`, `b`, `0`, `$`), deletion (`dd`, `x`), yank (`yy`). Display current mode (INSERT / NORMAL) as a status indicator.
+- [x] Implement vim normal/insert mode for the prompt input, adapted from Gemini CLI's `vim-buffer-actions.ts`. Support: mode toggle (`Escape` / `i`), navigation (`h`, `j`, `k`, `l`, `w`, `b`, `0`, `$`), deletion (`dd`, `x`), yank (`yy`). Display current mode (INSERT / NORMAL) as a status indicator.
 - **Depends on:** A.4
 - **Done when:** all listed motions work correctly; mode indicator updates on toggle; existing text input still works in INSERT mode
 
