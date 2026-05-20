@@ -69,12 +69,12 @@
 - **Done when:** `/foo` shows "Unknown command: foo"; `/explain` is routed correctly (even if not implemented yet)
 
 ### C.2 — Ollama client
-- [ ] Create a thin client that sends a prompt to any OpenAI-compatible local endpoint (default: `http://localhost:11434/v1`). Configurable via `--ai-url` flag or config file. Handle connection errors gracefully.
+- [x] Create a thin client that sends a prompt to any OpenAI-compatible local endpoint (default: `http://localhost:11434/v1`). Configurable via `--ai-url` flag or config file. Handle connection errors gracefully.
 - **Depends on:** A.1
 - **Done when:** the client sends a request to a running Ollama instance and returns the response text; a missing Ollama shows a clear error, not a crash
 
 ### C.3 — `/explain` command
-- [ ] `/explain` sends the last executed query (or a query passed as argument) to the Ollama client with a prompt asking for a plain-language explanation. Stream the response to the terminal.
+- [x] `/explain` sends the last executed query to the Ollama client with a prompt asking for a plain-language explanation. Stream the response to the terminal.
 - **Depends on:** C.1, C.2
 - **Done when:** after running `SELECT * FROM users WHERE age > 30`, `/explain` returns a readable explanation of the query
 

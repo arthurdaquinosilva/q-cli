@@ -7,6 +7,8 @@ const { values } = parseArgs({
   args: process.argv.slice(2).filter((a) => a !== '--'),
   options: {
     connection: { type: 'string', short: 'c' },
+    'ai-url':   { type: 'string', default: 'http://localhost:11434/v1' },
+    'ai-model': { type: 'string', default: 'llama3.2' },
   },
   strict: false,
 });
@@ -19,4 +21,11 @@ if (!values.connection) {
 
 const connectionState = await connect(values.connection);
 
-render(<App connectionState={connectionState} />, { exitOnCtrlC: true });
+render(
+  <App
+    connectionState={connectionState}
+    aiUrl={values['ai-url'] as string}
+    aiModel={values['ai-model'] as string}
+  />,
+  { exitOnCtrlC: true },
+);

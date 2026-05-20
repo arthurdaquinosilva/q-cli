@@ -3,6 +3,7 @@ import { Box, Text, useApp, useInput, useStdin } from 'ink';
 import type { ConnectionState } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand } from '../../commands/router.js';
+import { streamExplain } from '../../ai/client.js';
 import { loadHistory, saveHistory, addToHistory } from '../../config/history.js';
 import { QueryInput } from './QueryInput.js';
 import { QueryResult } from './QueryResult.js';
@@ -12,18 +13,24 @@ import type { VimMode } from '../hooks/useVimInput.js';
 
 interface AppProps {
   connectionState: ConnectionState;
+  aiUrl: string;
+  aiModel: string;
 }
 
-export function App({ connectionState }: AppProps) {
+export function App({ connectionState, aiUrl, aiModel }: AppProps) {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
   const [queryState, setQueryState] = useState<QueryState>({ status: 'idle' });
   const [lastQuery, setLastQuery] = useState<string>('');
+  const [lastSqlQuery, setLastSqlQuery] = useState<string>('');
   const [vimMode, setVimMode] = useState<VimMode>('INSERT');
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [vimEnabled, setVimEnabled] = useState(true);
   const [commandMessage, setCommandMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [history, setHistory] = useState<string[]>(() => loadHistory());
+  const [aiResponse, setAiResponse] = useState<string>('');
+  const [isStreaming, setIsStreaming] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isRawModeSupported) return;
@@ -45,17 +52,30 @@ export function App({ connectionState }: AppProps) {
     { isActive: isRawModeSupported },
   );
 
-  async function handleSubmit(sql: string) {
-    if (sql.startsWith('/')) {
-      const result = runCommand(sql, { vimEnabled, setVimEnabled });
-      setLastQuery(sql);
-      setCommandMessage(result);
-      setQueryState({ status: 'idle' });
-      return;
+  async function handleExplain(query: string) {
+    setAiResponse('');
+    setAiError(null);
+    setIsStreaming(true);
+    setCommandMessage(null);
+    setQueryState({ status: 'idle' });
+    try {
+      for await (const chunk of streamExplain(query, aiUrl, aiModel)) {
+        setAiResponse((prev) => prev + chunk);
+      }
+    } catch (err) {
+      setAiError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setIsStreaming(false);
     }
+  }
+
+  async function handleQuery(sql: string) {
     if (connectionState.status !== 'connected') return;
+    setAiResponse('');
+    setAiError(null);
     setCommandMessage(null);
     setLastQuery(sql);
+    setLastSqlQuery(sql);
     setElapsed(null);
     setQueryState({ status: 'running' });
     const updated = addToHistory(history, sql);
@@ -67,8 +87,27 @@ export function App({ connectionState }: AppProps) {
     setQueryState(result);
   }
 
-  const isLoading = queryState.status === 'running';
+  async function handleSubmit(sql: string) {
+    if (sql.startsWith('/')) {
+      const result = runCommand(sql, {
+        vimEnabled,
+        setVimEnabled,
+        lastSqlQuery,
+        onExplain: (query) => { void handleExplain(query); },
+        onQuery: (query) => { void handleQuery(query); },
+      });
+      setLastQuery(sql);
+      if (result.message) setCommandMessage(result);
+      else setCommandMessage(null);
+      if (!result.message) setQueryState({ status: 'idle' });
+      return;
+    }
+    void handleQuery(sql);
+  }
+
+  const isLoading = queryState.status === 'running' || isStreaming;
   const isConnected = connectionState.status === 'connected';
+  const showAi = aiResponse !== '' || isStreaming || aiError !== null;
 
   return (
     <Box flexDirection="column" paddingX={1}>
@@ -80,20 +119,38 @@ export function App({ connectionState }: AppProps) {
             <Text color={theme.accent} bold>Query  </Text>
             <Text dimColor>{lastQuery}</Text>
           </Box>
-          <Box marginTop={1}>
-            {commandMessage ? (
+          <Box marginTop={1} flexDirection="column">
+            {commandMessage && (
               <Text color={commandMessage.ok ? theme.accent : theme.error}>
                 {commandMessage.ok ? '✓' : '✗'} {commandMessage.text}
               </Text>
+            )}
+            {showAi ? (
+              <Box flexDirection="column">
+                {aiError ? (
+                  <Text color={theme.error}>✗ {aiError}</Text>
+                ) : (
+                  <Text>
+                    {aiResponse}
+                    {isStreaming && <Text color={ACCENT_DIM}>{'▋'}</Text>}
+                  </Text>
+                )}
+              </Box>
             ) : (
-              <QueryResult state={queryState} elapsed={elapsed} />
+              !commandMessage && <QueryResult state={queryState} elapsed={elapsed} />
             )}
           </Box>
         </Box>
       )}
 
       {isConnected ? (
-        <QueryInput onSubmit={handleSubmit} isLoading={isLoading} onModeChange={setVimMode} vimEnabled={vimEnabled} history={history} />
+        <QueryInput
+          onSubmit={handleSubmit}
+          isLoading={isLoading}
+          onModeChange={setVimMode}
+          vimEnabled={vimEnabled}
+          history={history}
+        />
       ) : (
         <Text dimColor>Not connected. Press Ctrl+C to exit.</Text>
       )}
@@ -108,3 +165,5 @@ export function App({ connectionState }: AppProps) {
     </Box>
   );
 }
+
+const ACCENT_DIM = '#4f46e5';
