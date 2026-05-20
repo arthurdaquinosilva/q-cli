@@ -64,7 +64,7 @@
 ## Phase C: Slash commands and AI
 
 ### C.1 — Slash command router
-- [ ] Detect when input starts with `/`. Parse the command name and arguments. Return a "unknown command" message for unrecognized commands. This is the foundation all slash commands build on.
+- [x] Detect when input starts with `/`. Parse the command name and arguments. Return a "unknown command" message for unrecognized commands. This is the foundation all slash commands build on. Includes live Tab autocomplete and `/toggle-vim-mode` as first command.
 - **Depends on:** B.5
 - **Done when:** `/foo` shows "Unknown command: foo"; `/explain` is routed correctly (even if not implemented yet)
 
