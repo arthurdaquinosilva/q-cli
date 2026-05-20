@@ -3,6 +3,7 @@ import { Box, Text, useApp, useInput, useStdin } from 'ink';
 import type { ConnectionState } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand } from '../../commands/router.js';
+import { loadHistory, saveHistory, addToHistory } from '../../config/history.js';
 import { QueryInput } from './QueryInput.js';
 import { QueryResult } from './QueryResult.js';
 import { Banner } from './Banner.js';
@@ -22,6 +23,7 @@ export function App({ connectionState }: AppProps) {
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [vimEnabled, setVimEnabled] = useState(true);
   const [commandMessage, setCommandMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [history, setHistory] = useState<string[]>(() => loadHistory());
 
   useEffect(() => {
     if (!isRawModeSupported) return;
@@ -56,6 +58,9 @@ export function App({ connectionState }: AppProps) {
     setLastQuery(sql);
     setElapsed(null);
     setQueryState({ status: 'running' });
+    const updated = addToHistory(history, sql);
+    setHistory(updated);
+    saveHistory(updated);
     const start = Date.now();
     const result = await runQuery(connectionState.client, sql);
     setElapsed(Date.now() - start);
@@ -88,7 +93,7 @@ export function App({ connectionState }: AppProps) {
       )}
 
       {isConnected ? (
-        <QueryInput onSubmit={handleSubmit} isLoading={isLoading} onModeChange={setVimMode} vimEnabled={vimEnabled} />
+        <QueryInput onSubmit={handleSubmit} isLoading={isLoading} onModeChange={setVimMode} vimEnabled={vimEnabled} history={history} />
       ) : (
         <Text dimColor>Not connected. Press Ctrl+C to exit.</Text>
       )}

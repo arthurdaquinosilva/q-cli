@@ -50,7 +50,7 @@
 - **Done when:** a query returning 1000+ rows shows the warning and exactly 500 rows
 
 ### B.4 — Query history
-- [ ] Persist query history to `~/.sql-cli/history.json`. Up-arrow navigates backward through history; down-arrow navigates forward. History persists across sessions.
+- [x] Persist query history to `~/.sql-cli/history.json`. Up-arrow navigates backward through history; down-arrow navigates forward. History persists across sessions.
 - **Depends on:** A.4
 - **Done when:** after restarting the CLI, up-arrow recalls queries from the previous session
 

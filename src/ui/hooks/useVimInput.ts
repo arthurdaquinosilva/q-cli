@@ -9,6 +9,8 @@ interface State {
   mode: VimMode;
   pending: string;
   yank: string;
+  historyIndex: number; // -1 = not browsing history
+  draft: string;        // saved input before history navigation started
 }
 
 function wordForward(str: string, pos: number): number {
@@ -47,6 +49,7 @@ export function useVimInput(
   isActive: boolean,
   vimEnabled: boolean = true,
   onTab?: (value: string) => string | null,
+  history: string[] = [],
 ) {
   const { isRawModeSupported } = useStdin();
   const [state, setState] = useState<State>({
@@ -55,6 +58,8 @@ export function useVimInput(
     mode: 'INSERT',
     pending: '',
     yank: '',
+    historyIndex: -1,
+    draft: '',
   });
 
   useInput(
@@ -69,7 +74,23 @@ export function useVimInput(
           if (key.return) {
             const trimmed = s.value.trim();
             if (trimmed) onSubmit(trimmed);
-            return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank };
+            return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank, historyIndex: -1, draft: '' };
+          }
+          if (key.upArrow) {
+            if (history.length === 0) return s;
+            const draft = s.historyIndex === -1 ? s.value : s.draft;
+            const next = s.historyIndex === -1 ? history.length - 1 : Math.max(0, s.historyIndex - 1);
+            const val = history[next] ?? '';
+            return { ...s, value: val, cursor: val.length, historyIndex: next, draft };
+          }
+          if (key.downArrow) {
+            if (s.historyIndex === -1) return s;
+            if (s.historyIndex === history.length - 1) {
+              return { ...s, value: s.draft, cursor: s.draft.length, historyIndex: -1, draft: '' };
+            }
+            const next = s.historyIndex + 1;
+            const val = history[next] ?? '';
+            return { ...s, value: val, cursor: val.length, historyIndex: next };
           }
           if (key.backspace || key.delete) {
             if (s.cursor === 0) return s;
@@ -77,6 +98,7 @@ export function useVimInput(
               ...s,
               value: s.value.slice(0, s.cursor - 1) + s.value.slice(s.cursor),
               cursor: s.cursor - 1,
+              historyIndex: -1,
             };
           }
           if (key.leftArrow) return { ...s, cursor: Math.max(0, s.cursor - 1) };
@@ -91,6 +113,7 @@ export function useVimInput(
               ...s,
               value: s.value.slice(0, s.cursor) + input + s.value.slice(s.cursor),
               cursor: s.cursor + input.length,
+              historyIndex: -1,
             };
           }
           return s;
@@ -100,7 +123,7 @@ export function useVimInput(
         if (key.return) {
           const trimmed = s.value.trim();
           if (trimmed) onSubmit(trimmed);
-          return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank };
+          return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank, historyIndex: -1, draft: '' };
         }
 
         // Pending operator: d

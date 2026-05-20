@@ -39,9 +39,10 @@ interface QueryInputProps {
   isLoading: boolean;
   onModeChange?: (mode: VimMode) => void;
   vimEnabled?: boolean;
+  history?: string[];
 }
 
-export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = true }: QueryInputProps) {
+export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = true, history = [] }: QueryInputProps) {
   function handleTab(current: string): string | null {
     if (!current.startsWith('/')) return null;
     const partial = current.slice(1);
@@ -56,7 +57,7 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
     return `/${prefix}`;
   }
 
-  const { value, cursor, mode } = useVimInput(onSubmit, !isLoading, vimEnabled, handleTab);
+  const { value, cursor, mode } = useVimInput(onSubmit, !isLoading, vimEnabled, handleTab, history);
 
   useEffect(() => {
     onModeChange?.(mode);
