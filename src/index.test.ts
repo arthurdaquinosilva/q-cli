@@ -1,5 +1,5 @@
 import { describe, it } from 'vitest';
 
-describe('sql-cli', () => {
+describe('q-cli', () => {
   it('has a test suite', () => {});
 });

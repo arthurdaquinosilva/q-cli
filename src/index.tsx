@@ -16,7 +16,7 @@ const { values } = parseArgs({
 
 if (!values.connection) {
   console.error('Error: --connection <dsn> is required');
-  console.error('Usage: sql-cli --connection postgresql://user:pass@host/db');
+  console.error('Usage: q-cli --connection postgresql://user:pass@host/db');
   process.exit(1);
 }
 

@@ -26,8 +26,8 @@ Developers who live in the command line.
 - `/connect [name]` — connect to a saved connection; if no name given, shows
   a list of available connections to pick from
 - Connections can also be passed as a CLI argument at startup:
-  `sql-cli --connection local-mysql`
-- Connection configs saved locally (e.g., `~/.sql-cli/connections.json`)
+  `q-cli --connection local-mysql`
+- Connection configs saved locally (e.g., `~/.q-cli/connections.json`)
 - Multi-connection support: switch between connections in a session
 
 ### Aliases (saved queries)
