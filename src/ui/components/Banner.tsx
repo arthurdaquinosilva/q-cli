@@ -55,15 +55,15 @@ export function Banner({ connectionState }: BannerProps) {
           <>
             <Text>
               <Text dimColor>Connected as  </Text>
-              <Text bold color="white">{connectionState.user}</Text>
+              <Text bold color={theme.insertMode}>{connectionState.user}</Text>
             </Text>
             <Text>
               <Text dimColor>Database      </Text>
-              <Text bold color="white">{connectionState.database}</Text>
+              <Text bold color={theme.insertMode}>{connectionState.database}</Text>
             </Text>
             <Text>
               <Text dimColor>Host          </Text>
-              <Text bold color="white">{connectionState.host}</Text>
+              <Text bold color={theme.insertMode}>{connectionState.host}</Text>
             </Text>
           </>
         ) : (
