@@ -7,6 +7,7 @@ export interface CommandContext {
   vimEnabled: boolean;
   setVimEnabled: (enabled: boolean) => void;
   lastSqlQuery: string;
+  args: string;
   onExplain: (query: string) => void;
   onQuery: (sql: string) => void;
 }
@@ -43,7 +44,17 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   'explain': {
-    description: 'Explain the last query using AI',
+    description: 'Explain a SQL query using AI: /explain SELECT ...',
+    run: (ctx) => {
+      if (!ctx.args) {
+        return { ok: false, message: 'Usage: /explain <SQL query>' };
+      }
+      ctx.onExplain(ctx.args);
+      return { ok: true, message: '' };
+    },
+  },
+  'explain-previous': {
+    description: 'Explain the last executed query using AI',
     run: (ctx) => {
       if (!ctx.lastSqlQuery) {
         return { ok: false, message: 'No query to explain — run a SQL query first.' };
@@ -63,9 +74,9 @@ export function getCompletions(partial: string): string[] {
   return COMMAND_LIST.map((c) => c.name).filter((n) => n.startsWith(partial));
 }
 
-export function runCommand(input: string, ctx: CommandContext): CommandResult {
-  const [name] = input.slice(1).trim().split(/\s+/);
+export function runCommand(input: string, ctx: Omit<CommandContext, 'args'>): CommandResult {
+  const [name, ...rest] = input.slice(1).trim().split(/\s+/);
   const cmd = COMMANDS[name ?? ''];
   if (!cmd) return { ok: false, message: `Unknown command: /${name}` };
-  return cmd.run(ctx);
+  return cmd.run({ ...ctx, args: rest.join(' ') });
 }

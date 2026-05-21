@@ -15,9 +15,10 @@ interface AppProps {
   connectionState: ConnectionState;
   aiUrl: string;
   aiModel: string;
+  aiKey: string;
 }
 
-export function App({ connectionState, aiUrl, aiModel }: AppProps) {
+export function App({ connectionState, aiUrl, aiModel, aiKey }: AppProps) {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
   const [queryState, setQueryState] = useState<QueryState>({ status: 'idle' });
@@ -59,7 +60,7 @@ export function App({ connectionState, aiUrl, aiModel }: AppProps) {
     setCommandMessage(null);
     setQueryState({ status: 'idle' });
     try {
-      for await (const chunk of streamExplain(query, aiUrl, aiModel)) {
+      for await (const chunk of streamExplain(query, aiUrl, aiModel, aiKey || undefined)) {
         setAiResponse((prev) => prev + chunk);
       }
     } catch (err) {
@@ -114,27 +115,30 @@ export function App({ connectionState, aiUrl, aiModel }: AppProps) {
       <Banner connectionState={connectionState} />
 
       {lastQuery !== '' && (
-        <Box flexDirection="column" marginBottom={1}>
+        <Box flexDirection="column" marginBottom={2}>
           <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
-            <Text color={theme.accent} bold>Query  </Text>
+            <Text color={theme.accent} bold>{lastQuery.startsWith('/') ? 'Command:' : 'Query:'} </Text>
             <Text dimColor>{lastQuery}</Text>
           </Box>
           <Box marginTop={1} flexDirection="column">
             {commandMessage && (
               <Text color={commandMessage.ok ? theme.accent : theme.error}>
-                {commandMessage.ok ? '✓' : '✗'} {commandMessage.text}
+                {commandMessage.ok ? '✓' : '✗'} {commandMessage.message}
               </Text>
             )}
             {showAi ? (
               <Box flexDirection="column">
+                <Text color={theme.accent} bold>Explanation:</Text>
+              <Box borderStyle="round" borderColor={PLACEHOLDER} paddingX={1} flexDirection="column">
                 {aiError ? (
                   <Text color={theme.error}>✗ {aiError}</Text>
                 ) : (
-                  <Text>
+                  <Text color={PLACEHOLDER}>
                     {aiResponse}
-                    {isStreaming && <Text color={ACCENT_DIM}>{'▋'}</Text>}
+                    {isStreaming && <Text color={PLACEHOLDER}>{'▋'}</Text>}
                   </Text>
                 )}
+              </Box>
               </Box>
             ) : (
               !commandMessage && <QueryResult state={queryState} elapsed={elapsed} />
@@ -167,3 +171,4 @@ export function App({ connectionState, aiUrl, aiModel }: AppProps) {
 }
 
 const ACCENT_DIM = '#4f46e5';
+const PLACEHOLDER = '#a5b4fc';

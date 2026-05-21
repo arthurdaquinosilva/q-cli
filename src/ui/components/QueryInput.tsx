@@ -57,7 +57,14 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
     return `/${prefix}`;
   }
 
-  const { value, cursor, mode } = useVimInput(onSubmit, !isLoading, vimEnabled, handleTab, history);
+  const { value, cursor, mode, suggestionIndex } = useVimInput(
+    onSubmit, !isLoading, vimEnabled, handleTab, history,
+    (v) => v.startsWith('/') ? getCompletions(v.slice(1)) : [],
+  );
+
+  const isCommand = value.startsWith('/');
+  const partial = isCommand ? value.slice(1) : '';
+  const suggestions = isCommand ? getCompletions(partial) : [];
 
   useEffect(() => {
     onModeChange?.(mode);
@@ -78,10 +85,6 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
     : 4 + before.length + 1 + after.length;
   const pad = ' '.repeat(Math.max(0, innerWidth - contentLen));
 
-  // Slash command suggestions
-  const isCommand = value.startsWith('/');
-  const partial = isCommand ? value.slice(1) : '';
-  const suggestions = isCommand ? getCompletions(partial) : [];
 
   const SEP = '  |  ';
   const allHints = vimEnabled ? HINTS[mode] : HINTS.PLAIN;
@@ -122,17 +125,20 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
       {/* Suggestions */}
       {suggestions.length > 0 && (
         <Box flexDirection="column" marginTop={1} marginLeft={2}>
-          {suggestions.map((name) => (
-            <Box key={name}>
-              <Text>
-                <Text dimColor>/</Text>
-                <Text color={ACCENT} bold>{partial}</Text>
-                <Text dimColor>{name.slice(partial.length)}</Text>
-              </Text>
-              <Text dimColor>{'  —  '}{DESC_MAP[name]}</Text>
-            </Box>
-          ))}
-          <Text dimColor>Tab to complete</Text>
+          {suggestions.map((name, i) => {
+            const selected = i === suggestionIndex;
+            return (
+              <Box key={name}>
+                <Text>
+                  <Text dimColor={!selected} color={selected ? ACCENT : undefined}>/</Text>
+                  <Text color={ACCENT} bold>{partial}</Text>
+                  <Text dimColor={!selected} color={selected ? ACCENT : undefined}>{name.slice(partial.length)}</Text>
+                </Text>
+                <Text dimColor>{'  —  '}{DESC_MAP[name]}</Text>
+              </Box>
+            );
+          })}
+          <Text dimColor>↑↓ navigate  Tab/Enter select</Text>
         </Box>
       )}
 

@@ -1,7 +1,5 @@
 const EXPLAIN_PROMPT = (query: string) =>
-  `You are a SQL expert. Explain this query in plain English. Be concise — cover what it does, which tables/columns it touches, and any notable behaviour (JOINs, aggregations, subqueries, etc.). Skip obvious observations.
-
-SQL: ${query}`;
+  `You are a SQL expert. Explain this query in plain English. Be concise — 2-4 sentences max. Do not repeat the SQL back.\n\nSQL: ${query}`;
 
 interface SSEChunk {
   choices: Array<{ delta: { content?: string }; finish_reason?: string | null }>;
@@ -11,47 +9,53 @@ export async function* streamExplain(
   query: string,
   baseUrl: string,
   model: string,
+  apiKey?: string,
 ): AsyncGenerator<string> {
-  let response: Response;
+  let res: Response;
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
   try {
-    response = await fetch(`${baseUrl}/chat/completions`, {
+    res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         model,
-        messages: [{ role: 'user', content: EXPLAIN_PROMPT(query) }],
         stream: true,
+        messages: [{ role: 'user', content: EXPLAIN_PROMPT(query) }],
       }),
     });
   } catch {
-    throw new Error(`Could not reach AI at ${baseUrl} — is Ollama running?`);
+    throw new Error('Could not reach Ollama — is it running? Try: ollama serve');
   }
 
-  if (!response.ok) {
-    throw new Error(`AI request failed: ${response.status} ${response.statusText}`);
+  if (!res.ok) {
+    const body = await res.text().catch(() => '');
+    throw new Error(`Ollama error ${res.status}: ${body || res.statusText}`);
   }
-  if (!response.body) throw new Error('AI response has no body');
 
-  const reader = response.body.getReader();
+  const reader = res.body?.getReader();
+  if (!reader) throw new Error('No response body from Ollama');
+
   const decoder = new TextDecoder();
-  let buffer = '';
+  let buf = '';
 
   while (true) {
     const { done, value } = await reader.read();
     if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const lines = buffer.split('\n');
-    buffer = lines.pop() ?? '';
+    buf += decoder.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop() ?? '';
     for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const data = line.slice(6).trim();
+      const trimmed = line.trim();
+      if (!trimmed.startsWith('data:')) continue;
+      const data = trimmed.slice(5).trim();
       if (data === '[DONE]') return;
       try {
-        const parsed = JSON.parse(data) as SSEChunk;
-        const content = parsed.choices[0]?.delta?.content;
+        const chunk = JSON.parse(data) as SSEChunk;
+        const content = chunk.choices[0]?.delta?.content;
         if (content) yield content;
       } catch {
-        // skip malformed SSE chunks
+        // malformed SSE line — skip
       }
     }
   }

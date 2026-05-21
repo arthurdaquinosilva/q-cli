@@ -9,6 +9,7 @@ const { values } = parseArgs({
     connection: { type: 'string', short: 'c' },
     'ai-url':   { type: 'string', default: 'http://localhost:11434/v1' },
     'ai-model': { type: 'string', default: 'llama3.2' },
+    'api-key':  { type: 'string', default: '' },
   },
   strict: false,
 });
@@ -21,11 +22,14 @@ if (!values.connection) {
 
 const connectionState = await connect(values.connection);
 
+const aiKey = (values['api-key'] as string) || process.env.Q_CLI_API_KEY || '';
+
 render(
   <App
     connectionState={connectionState}
     aiUrl={values['ai-url'] as string}
     aiModel={values['ai-model'] as string}
+    aiKey={aiKey}
   />,
   { exitOnCtrlC: true },
 );
