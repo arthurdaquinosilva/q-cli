@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-`q-cli` is a beautiful terminal SQL client built with TypeScript + React Ink.
+`querky` is a beautiful terminal SQL client built with TypeScript + React Ink.
 It targets PostgreSQL (MVP), renders results as clean tables, supports vim mode
 in the prompt, and integrates with local Ollama for AI query explanation.
 

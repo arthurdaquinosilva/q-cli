@@ -50,7 +50,7 @@ export function Banner({ connectionState }: BannerProps) {
       {/* Info — aligned to top, matches logo line by line */}
       <Box flexDirection="column">
         <Text bold color={theme.accent}>
-          Q CLI <Text dimColor>v{pkg.version}</Text>
+          Querky <Text dimColor>v{pkg.version}</Text>
         </Text>
         <Text> </Text>
         {isConnected ? (

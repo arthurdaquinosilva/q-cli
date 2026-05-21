@@ -1,8 +1,8 @@
-# Q CLI
+# Querky
 
 A beautiful terminal SQL client with vim keybindings and AI-powered query explanation.
 
-![Q CLI](./readme-cover.png)
+![Querky](./readme-cover.png)
 
 ## Features
 
@@ -30,14 +30,14 @@ A beautiful terminal SQL client with vim keybindings and AI-powered query explan
 ## Install
 
 ```bash
-git clone https://github.com/arthurdaquinosilva/q-cli.git
-cd q-cli
+git clone https://github.com/arthurdaquinosilva/querky.git
+cd querky
 pnpm install
 pnpm build
 pnpm install -g .
 ```
 
-After that, `q-cli` is available globally.
+After that, `querky` is available globally.
 
 ---
 
@@ -47,22 +47,22 @@ After that, `q-cli` is available globally.
 
 ```bash
 # PostgreSQL
-q-cli --connection postgresql://user:pass@localhost/mydb
-q-cli -c postgresql://user:pass@localhost/mydb
+querky --connection postgresql://user:pass@localhost/mydb
+querky -c postgresql://user:pass@localhost/mydb
 
 # MySQL
-q-cli -c mysql://user:pass@localhost/mydb
+querky -c mysql://user:pass@localhost/mydb
 
 # SQLite
-q-cli -c sqlite:///path/to/database.db
+querky -c sqlite:///path/to/database.db
 ```
 
 ### With the interactive wizard
 
-Run `q-cli` with no arguments and fill in the form:
+Run `querky` with no arguments and fill in the form:
 
 ```bash
-q-cli
+querky
 ```
 
 Use **Tab** or **↑↓** to move between fields, **←→** to cycle the driver, **Enter** to connect. Passwords are saved to the OS keychain after a successful connection and pre-filled on the next run.
@@ -71,7 +71,7 @@ Use **Tab** or **↑↓** to move between fields, **←→** to cycle the driver
 
 ## AI Setup
 
-Q CLI can explain your queries using any OpenAI-compatible API.
+Querky can explain your queries using any OpenAI-compatible API.
 
 ### Groq (recommended — fast and free)
 
@@ -86,7 +86,7 @@ export Q_CLI_API_KEY=gsk_...
 3. Connect with Groq:
 
 ```bash
-q-cli -c postgresql://... \
+querky -c postgresql://... \
   --ai-url https://api.groq.com/openai/v1 \
   --ai-model llama-3.1-8b-instant
 ```
@@ -99,7 +99,7 @@ ollama serve
 ```
 
 ```bash
-q-cli -c postgresql://... --ai-model llama3.2
+querky -c postgresql://... --ai-model llama3.2
 ```
 
 Ollama is the default endpoint (`http://localhost:11434/v1`).
@@ -152,7 +152,7 @@ Then invoke them like any other command:
 **Positional params** use `$1, $2, …` — pass values in order.
 **Named params** use `:param` — pass `key=value` pairs (quote values with spaces).
 
-Aliases are stored in `~/.config/q-cli/aliases.json` and are Tab-completable.
+Aliases are stored in `~/.config/querky/aliases.json` and are Tab-completable.
 
 ---
 
@@ -172,7 +172,7 @@ Users coming from `psql` can use familiar meta-commands:
 
 ## Vim Mode
 
-Q CLI starts in INSERT mode. Press `Escape` to enter NORMAL mode.
+Querky starts in INSERT mode. Press `Escape` to enter NORMAL mode.
 
 | Keys | Action |
 |---|---|

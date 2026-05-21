@@ -1,4 +1,4 @@
-const SERVICE = 'q-cli';
+const SERVICE = 'querky';
 
 function accountKey(driver: string, user: string, host: string, port: number): string {
   return `${driver}:${user}@${host}:${port}`;

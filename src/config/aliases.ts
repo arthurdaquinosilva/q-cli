@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const CONFIG_DIR = join(homedir(), '.config', 'q-cli');
+const CONFIG_DIR = join(homedir(), '.config', 'querky');
 const ALIASES_FILE = join(CONFIG_DIR, 'aliases.json');
 
 type AliasStore = Record<string, Record<string, string>>;
