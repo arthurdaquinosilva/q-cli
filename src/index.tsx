@@ -30,14 +30,21 @@ interface RootProps {
 
 function Root({ initialDsn, aiUrl, aiModel, aiKey }: RootProps) {
   const [connectionState, setConnectionState] = useState<ConnectionState | null>(null);
+  const [dsnError, setDsnError] = useState<string | null>(null);
 
   useEffect(() => {
     if (initialDsn) {
-      connectDsn(initialDsn).then(setConnectionState);
+      connectDsn(initialDsn).then((state) => {
+        if (state.status === 'error') {
+          setDsnError(state.message);
+        } else {
+          setConnectionState(state);
+        }
+      });
     }
   }, []);
 
-  if (initialDsn && !connectionState) {
+  if (initialDsn && !connectionState && !dsnError) {
     return (
       <Box paddingX={2} paddingTop={1}>
         <Text dimColor>Connecting…</Text>
@@ -46,7 +53,7 @@ function Root({ initialDsn, aiUrl, aiModel, aiKey }: RootProps) {
   }
 
   if (!connectionState) {
-    return <ConnectionWizard onConnect={setConnectionState} />;
+    return <ConnectionWizard onConnect={setConnectionState} initialError={dsnError ?? undefined} />;
   }
 
   async function handleChangeDatabase(database: string) {

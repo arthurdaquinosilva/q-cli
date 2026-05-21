@@ -95,6 +95,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         vimEnabled,
         setVimEnabled,
         lastSqlQuery,
+        currentDatabase: connectionState.status === 'connected' ? connectionState.database : '',
         driver: connectionState.status === 'connected' ? connectionState.driver : 'postgresql',
         onExplain: (query) => { void handleExplain(query); },
         onQuery: (query) => { void handleQuery(query); },

@@ -18,9 +18,10 @@ interface WizardFields {
 
 interface ConnectionWizardProps {
   onConnect: (state: ConnectionState) => void;
+  initialError?: string;
 }
 
-export function ConnectionWizard({ onConnect }: ConnectionWizardProps) {
+export function ConnectionWizard({ onConnect, initialError }: ConnectionWizardProps) {
   const { isRawModeSupported } = useStdin();
   const [focus, setFocus] = useState(0);
   const [fields, setFields] = useState<WizardFields>({
@@ -32,7 +33,7 @@ export function ConnectionWizard({ onConnect }: ConnectionWizardProps) {
     password: '',
   });
   const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(initialError ?? null);
 
   function getTextValue(idx: number): string {
     switch (idx) {

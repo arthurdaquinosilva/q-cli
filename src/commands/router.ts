@@ -9,6 +9,7 @@ export interface CommandContext {
   vimEnabled: boolean;
   setVimEnabled: (enabled: boolean) => void;
   lastSqlQuery: string;
+  currentDatabase: string;
   args: string;
   driver: Driver;
   onExplain: (query: string) => void;
@@ -21,14 +22,16 @@ interface Command {
   run: (ctx: CommandContext) => CommandResult;
 }
 
-const DB_QUERIES: Record<Driver, { databases: string; tables: string }> = {
+const DB_QUERIES: Record<Driver, { databases: string; tables: string; users: string }> = {
   postgresql: {
     databases: `SELECT datname AS database FROM pg_database WHERE datistemplate = false ORDER BY datname`,
     tables: `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`,
+    users: `SELECT usename AS user, usesuper AS superuser FROM pg_user ORDER BY usename`,
   },
   mysql: {
     databases: `SHOW DATABASES`,
     tables: `SHOW TABLES`,
+    users: `SELECT user, host FROM mysql.user ORDER BY user`,
   },
 };
 
@@ -36,6 +39,7 @@ const PSQL_ALIASES: Record<string, string> = {
   l: 'databases',
   d: 'tables',
   dt: 'tables',
+  du: 'users',
   c: 'changeDatabase',
 };
 
@@ -62,21 +66,26 @@ const COMMANDS: Record<string, Command> = {
       return { ok: true, message: '' };
     },
   },
-  'explain': {
-    description: 'Explain a SQL query using AI: /explain SELECT ...',
+  'users': {
+    description: 'List database users',
     run: (ctx) => {
-      if (!ctx.args) {
-        return { ok: false, message: 'Usage: /explain <SQL query>' };
-      }
-      ctx.onExplain(ctx.args);
+      ctx.onQuery(DB_QUERIES[ctx.driver].users);
       return { ok: true, message: '' };
     },
   },
   'changeDatabase': {
     description: 'Switch to a different database: \\c dbname',
     run: (ctx) => {
-      if (!ctx.args) return { ok: false, message: 'Usage: \\c <database>' };
+      if (!ctx.args) return { ok: true, message: `Connected to database: ${ctx.currentDatabase}` };
       ctx.onChangeDatabase(ctx.args.trim());
+      return { ok: true, message: '' };
+    },
+  },
+  'explain': {
+    description: 'Explain a SQL query using AI: /explain SELECT ...',
+    run: (ctx) => {
+      if (!ctx.args) return { ok: false, message: 'Usage: /explain <SQL query>' };
+      ctx.onExplain(ctx.args);
       return { ok: true, message: '' };
     },
   },
