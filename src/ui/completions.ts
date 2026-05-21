@@ -2,6 +2,35 @@ import type { Schema } from '../db/schema.js';
 
 export type { Schema };
 
+export function fuzzyScore(token: string, candidate: string): number {
+  if (token.length === 0) return 0;
+  let score = 0;
+  let ti = 0;
+  let run = 0;
+  for (let ci = 0; ci < candidate.length && ti < token.length; ci++) {
+    if (candidate[ci] === token[ti]) {
+      run++;
+      score += run * 2;
+      score += candidate.length - ci;
+      ti++;
+    } else {
+      run = 0;
+    }
+  }
+  if (ti < token.length) return -1;
+  if (candidate.startsWith(token)) score += 100;
+  return score;
+}
+
+export function fuzzyMatchPositions(token: string, candidate: string): number[] {
+  const positions: number[] = [];
+  let ti = 0;
+  for (let ci = 0; ci < candidate.length && ti < token.length; ci++) {
+    if (candidate[ci] === token[ti]) { positions.push(ci); ti++; }
+  }
+  return ti === token.length ? positions : [];
+}
+
 const SQL_KEYWORDS = [
   'SELECT', 'FROM', 'WHERE', 'JOIN', 'LEFT', 'RIGHT', 'INNER', 'OUTER', 'CROSS',
   'ON', 'AND', 'OR', 'NOT', 'IN', 'LIKE', 'ILIKE', 'BETWEEN', 'IS', 'NULL',
@@ -55,20 +84,24 @@ export function getSqlCompletions(value: string, cursor: number, schema: Schema)
   const tokenLower = token.toLowerCase();
   const ctx = getContextKeyword(value, cursor).toUpperCase();
 
+  function fuzzyRank<T extends string>(items: T[]): T[] {
+    return items
+      .map((item) => ({ item, score: fuzzyScore(tokenLower, item.toLowerCase()) }))
+      .filter(({ score }) => score >= 0)
+      .sort((a, b) => b.score - a.score)
+      .map(({ item }) => item);
+  }
+
   // Qualified column: table.col — need at least the dot present
   const qualTable = getQualifiedTable(value, cursor);
   if (qualTable) {
     const cols = schema.columns[qualTable] ?? schema.columns[qualTable.toLowerCase()] ?? [];
-    return token.length === 0
-      ? cols.slice(0, 8)
-      : cols.filter((c) => c.toLowerCase().startsWith(tokenLower)).slice(0, 8);
+    return token.length === 0 ? cols.slice(0, 8) : fuzzyRank(cols).slice(0, 8);
   }
 
   // After FROM / JOIN / INTO / UPDATE: show table names, even with an empty token
   if (TABLE_CONTEXT.has(ctx)) {
-    return token.length === 0
-      ? schema.tables.slice(0, 8)
-      : schema.tables.filter((t) => t.toLowerCase().startsWith(tokenLower)).slice(0, 8);
+    return token.length === 0 ? schema.tables.slice(0, 8) : fuzzyRank(schema.tables).slice(0, 8);
   }
 
   // Need at least 1 char for everything else
@@ -76,21 +109,21 @@ export function getSqlCompletions(value: string, cursor: number, schema: Schema)
 
   if (COLUMN_CONTEXT.has(ctx)) {
     const allCols = [...new Set(Object.values(schema.columns).flat())];
-    const matchingCols = allCols.filter((c) => c.toLowerCase().startsWith(tokenLower));
-    const matchingTables = schema.tables.filter((t) => t.toLowerCase().startsWith(tokenLower));
+    const matchingCols = fuzzyRank(allCols);
+    const matchingTables = fuzzyRank(schema.tables);
     const matchingKw = SQL_KEYWORDS
       .filter((k) => k.toLowerCase().startsWith(tokenLower))
       .map((k) => matchCase(k, token));
     return [...matchingTables, ...matchingCols, ...matchingKw].slice(0, 8);
   }
 
-  // Default: keywords (case-matched to user input) + tables + columns
+  // Default: keywords (startsWith) + fuzzy tables + fuzzy columns
   const matchingKw = SQL_KEYWORDS
     .filter((k) => k.toLowerCase().startsWith(tokenLower))
     .map((k) => matchCase(k, token));
-  const matchingTables = schema.tables.filter((t) => t.toLowerCase().startsWith(tokenLower));
+  const matchingTables = fuzzyRank(schema.tables);
   const allCols = [...new Set(Object.values(schema.columns).flat())];
-  const matchingCols = allCols.filter((c) => c.toLowerCase().startsWith(tokenLower));
+  const matchingCols = fuzzyRank(allCols);
   return [...matchingKw, ...matchingTables, ...matchingCols].slice(0, 8);
 }
 

@@ -1,5 +1,6 @@
 import type { Driver } from '../db/client.js';
 import { expandAlias } from '../config/aliases.js';
+import { fuzzyScore } from '../ui/completions.js';
 
 export interface CommandResult {
   ok: boolean;
@@ -173,9 +174,17 @@ export const BUILTIN_COMMAND_LIST = Object.entries(COMMANDS).map(([name, cmd]) =
 }));
 
 export function getCompletions(partial: string, aliases: Record<string, string> = {}): string[] {
-  const builtins = BUILTIN_COMMAND_LIST.map((c) => c.name).filter((n) => n.startsWith(partial));
-  const userAliases = Object.keys(aliases).filter((n) => n.startsWith(partial) && !COMMANDS[n]);
-  return [...builtins, ...userAliases];
+  if (partial.length === 0) return BUILTIN_COMMAND_LIST.map((c) => c.name);
+  const tokenLower = partial.toLowerCase();
+  const candidates = [
+    ...BUILTIN_COMMAND_LIST.map((c) => c.name),
+    ...Object.keys(aliases).filter((n) => !COMMANDS[n]),
+  ];
+  return candidates
+    .map((n) => ({ n, score: fuzzyScore(tokenLower, n.toLowerCase()) }))
+    .filter(({ score }) => score >= 0)
+    .sort((a, b) => b.score - a.score)
+    .map(({ n }) => n);
 }
 
 export function runCommand(input: string, ctx: Omit<CommandContext, 'args'>): CommandResult {

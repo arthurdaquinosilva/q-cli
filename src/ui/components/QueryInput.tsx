@@ -2,7 +2,29 @@ import { useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { useVimInput, type VimMode } from '../hooks/useVimInput.js';
 import { BUILTIN_COMMAND_LIST, getCompletions } from '../../commands/router.js';
-import { getSqlCompletions, getCurrentToken, applyCompletion, type Schema } from '../completions.js';
+import { getSqlCompletions, getCurrentToken, applyCompletion, fuzzyMatchPositions, type Schema } from '../completions.js';
+
+function FuzzyHighlight({ text, token, selected }: { text: string; token: string; selected: boolean }) {
+  if (!token) return <Text dimColor={!selected}>{text}</Text>;
+  const matched = new Set(fuzzyMatchPositions(token.toLowerCase(), text.toLowerCase()));
+  type Seg = { chars: string; hit: boolean };
+  const segs: Seg[] = [];
+  for (let i = 0; i < text.length; i++) {
+    const hit = matched.has(i);
+    const last = segs[segs.length - 1];
+    if (last && last.hit === hit) last.chars += text[i];
+    else segs.push({ chars: text[i], hit });
+  }
+  return (
+    <>
+      {segs.map((seg, i) =>
+        seg.hit
+          ? <Text key={i} color={ACCENT} bold>{seg.chars}</Text>
+          : <Text key={i} dimColor={!selected}>{seg.chars}</Text>
+      )}
+    </>
+  );
+}
 
 const BG = '#1e1b4b';
 const ACCENT = '#818cf8';
@@ -157,8 +179,7 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
                 <Box key={name}>
                   <Text>
                     <Text dimColor={!selected} color={selected ? ACCENT : undefined}>/</Text>
-                    <Text color={ACCENT} bold>{partial}</Text>
-                    <Text dimColor={!selected} color={selected ? ACCENT : undefined}>{name.slice(partial.length)}</Text>
+                    <FuzzyHighlight text={name} token={partial} selected={selected} />
                   </Text>
                   <Text dimColor>{'  —  '}{descMap[name]}</Text>
                 </Box>
@@ -166,10 +187,7 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
             }
             return (
               <Box key={name}>
-                <Text>
-                  <Text color={ACCENT} bold>{sqlToken}</Text>
-                  <Text dimColor={!selected} color={selected ? ACCENT : undefined}>{name.slice(sqlToken.length)}</Text>
-                </Text>
+                <FuzzyHighlight text={name} token={sqlToken} selected={selected} />
               </Box>
             );
           })}
