@@ -17,7 +17,6 @@ const LOGO = [
   '▐░    ░▌',
   '▐░  ▗▟▌',
   ' ▀▀▀▝▀▄',
-  '  · · · ',
 ];
 
 const GRADIENT = [
@@ -26,7 +25,6 @@ const GRADIENT = [
   '#ff6699',
   '#ff9966',
   '#ff7722',
-  '#ff9f43',
 ];
 
 interface BannerProps {
