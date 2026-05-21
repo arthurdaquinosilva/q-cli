@@ -1,6 +1,6 @@
 {
   "name": "q-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A beautiful SQL CLI with vim mode and AI features",
   "main": "dist/index.js",
   "files": [
@@ -27,9 +27,12 @@
     }
   },
   "type": "module",
-  "onlyBuiltDependencies": ["esbuild"],
+  "onlyBuiltDependencies": [
+    "esbuild"
+  ],
   "dependencies": {
     "ink": "^7.0.3",
+    "mysql2": "^3.22.3",
     "pg": "^8.21.0",
     "react": "^19.2.6"
   },

@@ -1,3 +1,5 @@
+import type { Driver } from '../db/client.js';
+
 export interface CommandResult {
   ok: boolean;
   message: string;
@@ -8,8 +10,10 @@ export interface CommandContext {
   setVimEnabled: (enabled: boolean) => void;
   lastSqlQuery: string;
   args: string;
+  driver: Driver;
   onExplain: (query: string) => void;
   onQuery: (sql: string) => void;
+  onChangeDatabase: (database: string) => void;
 }
 
 interface Command {
@@ -17,8 +21,23 @@ interface Command {
   run: (ctx: CommandContext) => CommandResult;
 }
 
-const PG_DATABASES = `SELECT datname AS database FROM pg_database WHERE datistemplate = false ORDER BY datname`;
-const PG_TABLES = `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`;
+const DB_QUERIES: Record<Driver, { databases: string; tables: string }> = {
+  postgresql: {
+    databases: `SELECT datname AS database FROM pg_database WHERE datistemplate = false ORDER BY datname`,
+    tables: `SELECT table_name FROM information_schema.tables WHERE table_schema = 'public' ORDER BY table_name`,
+  },
+  mysql: {
+    databases: `SHOW DATABASES`,
+    tables: `SHOW TABLES`,
+  },
+};
+
+const PSQL_ALIASES: Record<string, string> = {
+  l: 'databases',
+  d: 'tables',
+  dt: 'tables',
+  c: 'changeDatabase',
+};
 
 const COMMANDS: Record<string, Command> = {
   'toggle-vim-mode': {
@@ -32,14 +51,14 @@ const COMMANDS: Record<string, Command> = {
   'databases': {
     description: 'List available databases',
     run: (ctx) => {
-      ctx.onQuery(PG_DATABASES);
+      ctx.onQuery(DB_QUERIES[ctx.driver].databases);
       return { ok: true, message: '' };
     },
   },
   'tables': {
     description: 'List tables in the current database',
     run: (ctx) => {
-      ctx.onQuery(PG_TABLES);
+      ctx.onQuery(DB_QUERIES[ctx.driver].tables);
       return { ok: true, message: '' };
     },
   },
@@ -50,6 +69,14 @@ const COMMANDS: Record<string, Command> = {
         return { ok: false, message: 'Usage: /explain <SQL query>' };
       }
       ctx.onExplain(ctx.args);
+      return { ok: true, message: '' };
+    },
+  },
+  'changeDatabase': {
+    description: 'Switch to a different database: \\c dbname',
+    run: (ctx) => {
+      if (!ctx.args) return { ok: false, message: 'Usage: \\c <database>' };
+      ctx.onChangeDatabase(ctx.args.trim());
       return { ok: true, message: '' };
     },
   },
@@ -75,8 +102,10 @@ export function getCompletions(partial: string): string[] {
 }
 
 export function runCommand(input: string, ctx: Omit<CommandContext, 'args'>): CommandResult {
-  const [name, ...rest] = input.slice(1).trim().split(/\s+/);
-  const cmd = COMMANDS[name ?? ''];
-  if (!cmd) return { ok: false, message: `Unknown command: /${name}` };
+  const [rawName, ...rest] = input.slice(1).trim().split(/\s+/);
+  const name = PSQL_ALIASES[rawName ?? ''] ?? rawName ?? '';
+  const cmd = COMMANDS[name];
+  const prefix = input.startsWith('\\') ? '\\' : '/';
+  if (!cmd) return { ok: false, message: `Unknown command: ${prefix}${rawName}` };
   return cmd.run({ ...ctx, args: rest.join(' ') });
 }

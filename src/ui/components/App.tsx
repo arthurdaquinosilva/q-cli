@@ -16,9 +16,10 @@ interface AppProps {
   aiUrl: string;
   aiModel: string;
   aiKey: string;
+  onChangeDatabase?: (database: string) => void;
 }
 
-export function App({ connectionState, aiUrl, aiModel, aiKey }: AppProps) {
+export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }: AppProps) {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
   const [queryState, setQueryState] = useState<QueryState>({ status: 'idle' });
@@ -89,13 +90,15 @@ export function App({ connectionState, aiUrl, aiModel, aiKey }: AppProps) {
   }
 
   async function handleSubmit(sql: string) {
-    if (sql.startsWith('/')) {
+    if (sql.startsWith('/') || sql.startsWith('\\')) {
       const result = runCommand(sql, {
         vimEnabled,
         setVimEnabled,
         lastSqlQuery,
+        driver: connectionState.status === 'connected' ? connectionState.driver : 'postgresql',
         onExplain: (query) => { void handleExplain(query); },
         onQuery: (query) => { void handleQuery(query); },
+        onChangeDatabase: (db) => { onChangeDatabase?.(db); },
       });
       setLastQuery(sql);
       if (result.message) setCommandMessage(result);

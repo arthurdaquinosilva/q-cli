@@ -43,7 +43,7 @@ export function QueryResult({ state, elapsed }: QueryResultProps) {
   }
 
   const { result } = state;
-  const columns = result.fields.map((f) => f.name);
+  const columns = result.fields;
 
   if (result.rows.length === 0) {
     return (
