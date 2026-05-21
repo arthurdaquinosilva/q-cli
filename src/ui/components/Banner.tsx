@@ -17,6 +17,16 @@ const LOGO = [
   '▐░    ░▌',
   '▐░  ▗▟▌',
   ' ▀▀▀▝▀ ',
+  '  · · · ',
+];
+
+const GRADIENT = [
+  '#ff00dd',
+  '#ff33bb',
+  '#ff6699',
+  '#ff9966',
+  '#ff7722',
+  '#ff9f43',
 ];
 
 interface BannerProps {
@@ -31,7 +41,7 @@ export function Banner({ connectionState }: BannerProps) {
       {/* Logo — fixed 4 lines */}
       <Box flexDirection="column" marginRight={2}>
         {LOGO.map((line, i) => (
-          <Text key={i} color={theme.accent} bold>
+          <Text key={i} color={GRADIENT[i]} bold>
             {line}
           </Text>
         ))}
