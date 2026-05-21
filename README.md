@@ -119,8 +119,40 @@ Ollama is the default endpoint (`http://localhost:11434/v1`).
 | `/next` | Next page of results |
 | `/prev` | Previous page of results |
 | `/toggle-vim-mode` | Toggle vim keybindings on/off |
+| `/save <name>` | Save the last query as an alias |
+| `/alias <name> <SQL>` | Define an alias inline |
+| `/aliases` | List all aliases for the current database |
+| `/unalias <name>` | Remove a saved alias |
 
 Type `/` and use **Tab** or **↑↓** to navigate and complete commands.
+
+---
+
+## Query Aliases
+
+Save any query under a short name, scoped to the current database.
+
+```bash
+# Save the last executed query
+/save get_all_users
+
+# Or define one inline
+/alias get_user SELECT * FROM users WHERE id = $1
+/alias add_user INSERT INTO users(name, email) VALUES (:name, :email)
+```
+
+Then invoke them like any other command:
+
+```bash
+/get_all_users
+/get_user 42
+/add_user name="Alice" email="alice@example.com"
+```
+
+**Positional params** use `$1, $2, …` — pass values in order.
+**Named params** use `:param` — pass `key=value` pairs (quote values with spaces).
+
+Aliases are stored in `~/.config/q-cli/aliases.json` and are Tab-completable.
 
 ---
 
