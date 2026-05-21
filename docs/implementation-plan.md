@@ -11,7 +11,7 @@
 ## Phase A: Walking skeleton — something that runs end-to-end
 
 ### A.1 — Project scaffold
-- [x] Init `pnpm` project, `tsconfig.json`, `eslint`, `prettier`, `vitest`, `tsup`. Create `src/index.ts` entry point that prints "Hello from q-cli" and exits cleanly.
+- [x] Init `pnpm` project, `tsconfig.json`, `eslint`, `prettier`, `vitest`, `tsup`. Create `src/index.ts` entry point that prints "Hello from querky" and exits cleanly.
 - **Depends on:** none
 - **Done when:** `pnpm dev` prints the message; `pnpm lint` and `pnpm test` run without errors
 
@@ -50,7 +50,7 @@
 - **Done when:** a query returning 1000+ rows shows the warning and exactly 500 rows
 
 ### B.4 — Query history
-- [x] Persist query history to `~/.q-cli/history.json`. Up-arrow navigates backward through history; down-arrow navigates forward. History persists across sessions.
+- [x] Persist query history to `~/.config/querky/history.json`. Up-arrow navigates backward through history; down-arrow navigates forward. History persists across sessions.
 - **Depends on:** A.4
 - **Done when:** after restarting the CLI, up-arrow recalls queries from the previous session
 
@@ -107,9 +107,9 @@
 - **Done when:** a fresh clone + README produces a running CLI with a real DB connection in under 5 minutes
 
 ### E.3 — Package for local install
-- [x] Configure `tsup` to bundle the CLI. Add a `bin` entry to `package.json` so `pnpm install -g .` makes `q-cli` available globally.
+- [x] Configure `tsup` to bundle the CLI. Add a `bin` entry to `package.json` so `pnpm install -g .` makes `querky` available globally.
 - **Depends on:** E.2
-- **Done when:** after global install, `q-cli --connection <dsn>` works from any directory
+- **Done when:** after global install, `querky --connection <dsn>` works from any directory
 
 ---
 

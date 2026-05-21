@@ -9,7 +9,7 @@ better.
 ## In the MVP
 
 - **Single engine:** PostgreSQL only
-- **Connection:** passed as a CLI argument at startup (`q-cli --connection <dsn>`)
+- **Connection:** passed as a CLI argument at startup (`querky --connection <dsn>`)
   or via a simple local config file; OS keychain for password storage
 - **Query execution:** run any SQL query, display results as a beautiful table
 - **Responsive layout:** auto-switch to expanded (vertical) mode for wide result

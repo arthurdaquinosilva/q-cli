@@ -18,7 +18,7 @@
 | Table rendering | `ink-table` or custom Rich-style component | Clean table output in Ink | `cli-table3` (no Ink integration) |
 | PostgreSQL driver | `pg` (node-postgres) + `@types/pg` | Mature, well-documented, widely used | `postgres.js` (newer, faster, but less ecosystem) |
 | AI client | `openai` SDK (OpenAI-compatible) | Works with any local Ollama endpoint; no lock-in | Raw `fetch` to local endpoint |
-| Credential storage | `keytar` | OS keychain on Linux/macOS/Windows; same lib used by Gemini CLI | Plaintext `~/.q-cli/config.json` with chmod 600 |
+| Credential storage | `keytar` | OS keychain on Linux/macOS/Windows; same lib used by Gemini CLI | Plaintext `~/.config/querky/config.json` with chmod 600 |
 | Package manager | `pnpm` | Fast, efficient disk usage | npm, yarn |
 | Bundler | `tsup` | Simple TypeScript bundler, zero config | esbuild directly |
 | Linter / formatter | `eslint` + `prettier` | Standard TypeScript tooling | `biome` (faster but less adopted) |

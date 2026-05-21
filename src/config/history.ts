@@ -2,7 +2,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
-const DIR = join(homedir(), '.q-cli');
+const DIR = join(homedir(), '.config', 'querky');
 const FILE = join(DIR, 'history.json');
 const MAX = 1000;
 

@@ -2,7 +2,7 @@
 
 ## Project overview
 
-`q-cli` is a beautiful terminal SQL client for developers who live in the
+`querky` is a beautiful terminal SQL client for developers who live in the
 command line. It targets PostgreSQL (MVP), renders query results as clean tables,
 supports vim mode in the prompt, and integrates with local AI models (Ollama)
 for query explanation. Built with TypeScript, React Ink, and node-postgres.
