@@ -78,7 +78,10 @@ export function getSqlCompletions(value: string, cursor: number, schema: Schema)
     const allCols = [...new Set(Object.values(schema.columns).flat())];
     const matchingCols = allCols.filter((c) => c.toLowerCase().startsWith(tokenLower));
     const matchingTables = schema.tables.filter((t) => t.toLowerCase().startsWith(tokenLower));
-    return [...matchingTables, ...matchingCols].slice(0, 8);
+    const matchingKw = SQL_KEYWORDS
+      .filter((k) => k.toLowerCase().startsWith(tokenLower))
+      .map((k) => matchCase(k, token));
+    return [...matchingTables, ...matchingCols, ...matchingKw].slice(0, 8);
   }
 
   // Default: keywords (case-matched to user input) + tables + columns
