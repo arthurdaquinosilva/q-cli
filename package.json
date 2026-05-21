@@ -1,6 +1,6 @@
 {
   "name": "q-cli",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "A beautiful SQL CLI with vim mode and AI features",
   "main": "dist/index.js",
   "files": [
@@ -28,15 +28,20 @@
   },
   "type": "module",
   "onlyBuiltDependencies": [
-    "esbuild"
+    "better-sqlite3",
+    "esbuild",
+    "keytar"
   ],
   "dependencies": {
+    "better-sqlite3": "^12.10.0",
     "ink": "^7.0.3",
+    "keytar": "^7.9.0",
     "mysql2": "^3.22.3",
     "pg": "^8.21.0",
     "react": "^19.2.6"
   },
   "devDependencies": {
+    "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^25.9.0",
     "@types/react": "^19.2.14",
     "@typescript-eslint/eslint-plugin": "^8.59.4",

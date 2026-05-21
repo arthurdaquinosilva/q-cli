@@ -1,6 +1,8 @@
 import { Client } from 'pg';
 import { createConnection } from 'mysql2/promise';
 import type { RowDataPacket, FieldPacket, ResultSetHeader } from 'mysql2';
+import Database from 'better-sqlite3';
+import { savePassword } from '../config/keychain.js';
 
 export interface DbResult {
   fields: string[];
@@ -13,7 +15,7 @@ export interface DbClient {
   end(): Promise<void>;
 }
 
-export type Driver = 'postgresql' | 'mysql';
+export type Driver = 'postgresql' | 'mysql' | 'sqlite';
 
 export type ConnectionState =
   | { status: 'connected'; client: DbClient; database: string; host: string; user: string; driver: Driver; params: ConnectionParams }
@@ -40,9 +42,7 @@ class PgDbClient implements DbClient {
     };
   }
 
-  async end() {
-    await this.pg.end();
-  }
+  async end() { await this.pg.end(); }
 }
 
 class MysqlDbClient implements DbClient {
@@ -61,13 +61,41 @@ class MysqlDbClient implements DbClient {
     return { fields: [], rows: [], rowCount: header.affectedRows ?? 0 };
   }
 
-  async end() {
-    await this.conn.end();
+  async end() { await this.conn.end(); }
+}
+
+class SqliteDbClient implements DbClient {
+  constructor(private db: InstanceType<typeof Database>) {}
+
+  async query(sql: string): Promise<DbResult> {
+    const stmt = this.db.prepare(sql);
+    if (stmt.reader) {
+      const rows = stmt.all() as Record<string, unknown>[];
+      const fields = stmt.columns().map((c) => c.name);
+      return { fields, rows, rowCount: rows.length };
+    }
+    const info = stmt.run();
+    return { fields: [], rows: [], rowCount: info.changes };
   }
+
+  async end() { this.db.close(); }
 }
 
 export async function connectParams(params: ConnectionParams): Promise<ConnectionState> {
   try {
+    if (params.driver === 'sqlite') {
+      const db = new Database(params.database);
+      return {
+        status: 'connected',
+        client: new SqliteDbClient(db),
+        database: params.database,
+        host: 'local',
+        user: '',
+        driver: 'sqlite',
+        params,
+      };
+    }
+
     if (params.driver === 'mysql') {
       const conn = await createConnection({
         host: params.host,
@@ -78,6 +106,7 @@ export async function connectParams(params: ConnectionParams): Promise<Connectio
       });
       const [rows] = await conn.query<RowDataPacket[]>('SELECT DATABASE() AS db');
       const database = (rows[0]?.db as string) ?? params.database;
+      void savePassword(params.driver, params.user, params.host, params.port, params.password);
       return {
         status: 'connected',
         client: new MysqlDbClient(conn),
@@ -98,6 +127,7 @@ export async function connectParams(params: ConnectionParams): Promise<Connectio
     });
     await pg.connect();
     const res = await pg.query<{ current_database: string }>('SELECT current_database()');
+    void savePassword(params.driver, params.user, params.host, params.port, params.password);
     return {
       status: 'connected',
       client: new PgDbClient(pg),
@@ -114,6 +144,12 @@ export async function connectParams(params: ConnectionParams): Promise<Connectio
 
 export async function connectDsn(dsn: string): Promise<ConnectionState> {
   try {
+    // SQLite: sqlite:///path or sqlite://./path
+    if (dsn.startsWith('sqlite:')) {
+      const filePath = dsn.replace(/^sqlite:\/\//, '').replace(/^\//, '') || dsn.replace('sqlite:', '');
+      return connectParams({ driver: 'sqlite', host: 'local', port: 0, database: filePath, user: '', password: '' });
+    }
+
     const url = new URL(dsn);
     const driver: Driver = url.protocol.startsWith('mysql') ? 'mysql' : 'postgresql';
 

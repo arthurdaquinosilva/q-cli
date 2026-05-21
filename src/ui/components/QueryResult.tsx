@@ -4,11 +4,11 @@ import type { QueryState } from '../../db/query.js';
 import { Table, cellValue, colWidths } from './Table.js';
 import { theme } from '../theme.js';
 
-const MAX_ROWS = 500;
-
 interface QueryResultProps {
   state: QueryState;
   elapsed: number | null;
+  page: number;
+  pageSize: number;
 }
 
 function formatDuration(ms: number): string {
@@ -26,7 +26,7 @@ function useTerminalWidth() {
   return width;
 }
 
-export function QueryResult({ state, elapsed }: QueryResultProps) {
+export function QueryResult({ state, elapsed, page, pageSize }: QueryResultProps) {
   const termWidth = useTerminalWidth();
 
   if (state.status === 'idle' || state.status === 'running') return null;
@@ -56,8 +56,11 @@ export function QueryResult({ state, elapsed }: QueryResultProps) {
   }
 
   const totalRows = result.rows.length;
-  const truncated = totalRows > MAX_ROWS;
-  const displayRows = truncated ? result.rows.slice(0, MAX_ROWS) : result.rows;
+  const totalPages = Math.ceil(totalRows / pageSize);
+  const currentPage = Math.min(page, totalPages - 1);
+  const start = currentPage * pageSize;
+  const displayRows = result.rows.slice(start, start + pageSize);
+  const isPaged = totalRows > pageSize;
 
   const widths = colWidths(columns, displayRows);
   const tableWidth = 1 + widths.reduce((sum, w) => sum + w + 3, 0);
@@ -67,11 +70,15 @@ export function QueryResult({ state, elapsed }: QueryResultProps) {
     <Box flexDirection="column">
       <Table columns={columns} rows={displayRows} expanded={expanded} />
       <Box marginTop={1} flexDirection="column">
-        {truncated && (
-          <Text color={theme.warning}>⚠ Showing {MAX_ROWS} of {totalRows} rows</Text>
+        {isPaged && (
+          <Text color={theme.warning}>
+            Page {currentPage + 1} of {totalPages} · showing rows {start + 1}–{start + displayRows.length} of {totalRows}
+            {currentPage > 0 ? '  /prev' : ''}
+            {currentPage < totalPages - 1 ? '  /next' : ''}
+          </Text>
         )}
         <Text color={theme.accent}>
-          {truncated ? MAX_ROWS : totalRows} row{totalRows !== 1 ? 's' : ''}{timing}
+          {displayRows.length} row{displayRows.length !== 1 ? 's' : ''}{timing}
           {expanded ? '  [expanded]' : ''}
         </Text>
       </Box>

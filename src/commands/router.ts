@@ -15,6 +15,7 @@ export interface CommandContext {
   onExplain: (query: string) => void;
   onQuery: (sql: string) => void;
   onChangeDatabase: (database: string) => void;
+  onExport: (format: 'csv' | 'json') => void;
 }
 
 interface Command {
@@ -78,6 +79,17 @@ const COMMANDS: Record<string, Command> = {
     run: (ctx) => {
       if (!ctx.args) return { ok: true, message: `Connected to database: ${ctx.currentDatabase}` };
       ctx.onChangeDatabase(ctx.args.trim());
+      return { ok: true, message: '' };
+    },
+  },
+  'export': {
+    description: 'Export last result to a file: /export csv or /export json',
+    run: (ctx) => {
+      const fmt = ctx.args.trim().toLowerCase();
+      if (fmt !== 'csv' && fmt !== 'json') {
+        return { ok: false, message: 'Usage: /export csv  or  /export json' };
+      }
+      ctx.onExport(fmt as 'csv' | 'json');
       return { ok: true, message: '' };
     },
   },

@@ -1,6 +1,9 @@
 import { useState, useEffect } from 'react';
+import { writeFileSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { Box, Text, useApp, useInput, useStdin } from 'ink';
-import type { ConnectionState } from '../../db/client.js';
+import type { ConnectionState, DbResult } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand } from '../../commands/router.js';
 import { streamExplain } from '../../ai/client.js';
@@ -10,6 +13,9 @@ import { QueryResult } from './QueryResult.js';
 import { Banner } from './Banner.js';
 import { theme } from '../theme.js';
 import type { VimMode } from '../hooks/useVimInput.js';
+
+const PAGE_SIZE = 50;
+const PLACEHOLDER = '#a5b4fc';
 
 interface AppProps {
   connectionState: ConnectionState;
@@ -25,6 +31,8 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [queryState, setQueryState] = useState<QueryState>({ status: 'idle' });
   const [lastQuery, setLastQuery] = useState<string>('');
   const [lastSqlQuery, setLastSqlQuery] = useState<string>('');
+  const [lastResult, setLastResult] = useState<DbResult | null>(null);
+  const [page, setPage] = useState(0);
   const [vimMode, setVimMode] = useState<VimMode>('INSERT');
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [vimEnabled, setVimEnabled] = useState(true);
@@ -79,6 +87,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     setLastQuery(sql);
     setLastSqlQuery(sql);
     setElapsed(null);
+    setPage(0);
     setQueryState({ status: 'running' });
     const updated = addToHistory(history, sql);
     setHistory(updated);
@@ -87,9 +96,42 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     const result = await runQuery(connectionState.client, sql);
     setElapsed(Date.now() - start);
     setQueryState(result);
+    if (result.status === 'success') setLastResult(result.result);
+  }
+
+  function handleExport(format: 'csv' | 'json') {
+    if (!lastResult || lastResult.rows.length === 0) {
+      setCommandMessage({ ok: false, text: 'No results to export — run a query first.' });
+      return;
+    }
+    const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+    const filename = join(homedir(), `q-export-${ts}.${format}`);
+    try {
+      if (format === 'json') {
+        writeFileSync(filename, JSON.stringify(lastResult.rows, null, 2));
+      } else {
+        const header = lastResult.fields.join(',');
+        const rows = lastResult.rows.map((row) =>
+          lastResult.fields.map((f) => {
+            const v = row[f];
+            if (v === null || v === undefined) return '';
+            const s = String(v);
+            return s.includes(',') || s.includes('"') || s.includes('\n')
+              ? `"${s.replace(/"/g, '""')}"` : s;
+          }).join(',')
+        );
+        writeFileSync(filename, [header, ...rows].join('\n'));
+      }
+      setCommandMessage({ ok: true, text: `Exported to ${filename}` });
+    } catch (err) {
+      setCommandMessage({ ok: false, text: err instanceof Error ? err.message : String(err) });
+    }
   }
 
   async function handleSubmit(sql: string) {
+    if (sql === '/next') { setPage((p) => p + 1); setLastQuery(sql); return; }
+    if (sql === '/prev') { setPage((p) => Math.max(0, p - 1)); setLastQuery(sql); return; }
+
     if (sql.startsWith('/') || sql.startsWith('\\')) {
       const result = runCommand(sql, {
         vimEnabled,
@@ -100,9 +142,10 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         onExplain: (query) => { void handleExplain(query); },
         onQuery: (query) => { void handleQuery(query); },
         onChangeDatabase: (db) => { onChangeDatabase?.(db); },
+        onExport: handleExport,
       });
       setLastQuery(sql);
-      if (result.message) setCommandMessage(result);
+      if (result.message) setCommandMessage({ ok: result.ok, text: result.message });
       else setCommandMessage(null);
       if (!result.message) setQueryState({ status: 'idle' });
       return;
@@ -121,31 +164,33 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
       {lastQuery !== '' && (
         <Box flexDirection="column" marginBottom={2}>
           <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
-            <Text color={theme.accent} bold>{lastQuery.startsWith('/') ? 'Command:' : 'Query:'} </Text>
+            <Text color={theme.accent} bold>{lastQuery.startsWith('/') || lastQuery.startsWith('\\') ? 'Command:' : 'Query:'} </Text>
             <Text dimColor>{lastQuery}</Text>
           </Box>
           <Box marginTop={1} flexDirection="column">
             {commandMessage && (
               <Text color={commandMessage.ok ? theme.accent : theme.error}>
-                {commandMessage.ok ? '✓' : '✗'} {commandMessage.message}
+                {commandMessage.ok ? '✓' : '✗'} {commandMessage.text}
               </Text>
             )}
             {showAi ? (
               <Box flexDirection="column">
                 <Text color={theme.accent} bold>Explanation:</Text>
-              <Box borderStyle="round" borderColor={PLACEHOLDER} paddingX={1} flexDirection="column">
-                {aiError ? (
-                  <Text color={theme.error}>✗ {aiError}</Text>
-                ) : (
-                  <Text color={PLACEHOLDER}>
-                    {aiResponse}
-                    {isStreaming && <Text color={PLACEHOLDER}>{'▋'}</Text>}
-                  </Text>
-                )}
-              </Box>
+                <Box borderStyle="round" borderColor={PLACEHOLDER} paddingX={1} flexDirection="column">
+                  {aiError ? (
+                    <Text color={theme.error}>✗ {aiError}</Text>
+                  ) : (
+                    <Text color={PLACEHOLDER}>
+                      {aiResponse}
+                      {isStreaming && <Text color={PLACEHOLDER}>{'▋'}</Text>}
+                    </Text>
+                  )}
+                </Box>
               </Box>
             ) : (
-              !commandMessage && <QueryResult state={queryState} elapsed={elapsed} />
+              !commandMessage && (
+                <QueryResult state={queryState} elapsed={elapsed} page={page} pageSize={PAGE_SIZE} />
+              )
             )}
           </Box>
         </Box>
@@ -173,6 +218,3 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     </Box>
   );
 }
-
-const ACCENT_DIM = '#4f46e5';
-const PLACEHOLDER = '#a5b4fc';

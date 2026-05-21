@@ -6,4 +6,5 @@ export default defineConfig({
   banner: { js: '#!/usr/bin/env node' },
   dts: false,
   clean: true,
+  external: ['better-sqlite3', 'keytar'],
 });
