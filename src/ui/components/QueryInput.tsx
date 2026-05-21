@@ -5,7 +5,7 @@ import { BUILTIN_COMMAND_LIST, getCompletions } from '../../commands/router.js';
 import { getSqlCompletions, getCurrentToken, applyCompletion, type Schema } from '../completions.js';
 
 const BG = '#1e1b4b';
-const ACCENT = '#818cf8';
+const ACCENT = '#22d3ee';
 const PLACEHOLDER = '#6366f1';
 
 const HINTS = {

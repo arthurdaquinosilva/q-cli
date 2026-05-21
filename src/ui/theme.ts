@@ -1,5 +1,6 @@
 export const theme = {
-  accent: '#818cf8',
+  accent: '#22d3ee',
+  normalMode: '#ff7722',
   logo: '#ff9f43',
   success: 'green',
   error: 'red',

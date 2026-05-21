@@ -241,7 +241,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
 
       {vimEnabled && (
         <Box marginTop={1}>
-          <Text bold color={vimMode === 'NORMAL' ? 'cyan' : theme.accent}>
+          <Text bold color={vimMode === 'NORMAL' ? theme.normalMode : theme.accent}>
             {isRawModeSupported ? `[${vimMode}]` : ''}
           </Text>
         </Box>
