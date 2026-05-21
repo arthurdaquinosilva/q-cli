@@ -1,8 +1,8 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Box, Text, useApp, useInput, useStdin } from 'ink';
+import { Box, Text, Static, useApp, useInput, useStdin } from 'ink';
 import type { ConnectionState, DbResult } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand } from '../../commands/router.js';
@@ -18,6 +18,51 @@ import type { VimMode } from '../hooks/useVimInput.js';
 
 const PAGE_SIZE = 50;
 const PLACEHOLDER = '#a5b4fc';
+
+interface Entry {
+  id: number;
+  query: string;
+  commandMessage: { text: string; ok: boolean } | null;
+  queryState: QueryState;
+  elapsed: number | null;
+  page: number;
+  aiResponse: string;
+  aiError: string | null;
+}
+
+function EntryView({ entry }: { entry: Entry }) {
+  const showAi = entry.aiResponse !== '' || entry.aiError !== null;
+  const isCommand = entry.query.startsWith('/') || entry.query.startsWith('\\');
+  return (
+    <Box flexDirection="column" marginBottom={1} paddingX={1}>
+      <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
+        <Text color={theme.accent} bold>{isCommand ? 'Command:' : 'Query:'} </Text>
+        <Text dimColor>{entry.query}</Text>
+      </Box>
+      <Box marginTop={1} flexDirection="column">
+        {entry.commandMessage && (
+          <Text color={entry.commandMessage.ok ? theme.accent : theme.error}>
+            {entry.commandMessage.ok ? '✓' : '✗'} {entry.commandMessage.text}
+          </Text>
+        )}
+        {showAi ? (
+          <Box flexDirection="column">
+            <Text color={theme.accent} bold>Explanation:</Text>
+            {entry.aiError ? (
+              <Text color={theme.error}>✗ {entry.aiError}</Text>
+            ) : (
+              <Text color={PLACEHOLDER}>{entry.aiResponse}</Text>
+            )}
+          </Box>
+        ) : (
+          !entry.commandMessage && (
+            <QueryResult state={entry.queryState} elapsed={entry.elapsed} page={entry.page} pageSize={PAGE_SIZE} />
+          )
+        )}
+      </Box>
+    </Box>
+  );
+}
 
 interface AppProps {
   connectionState: ConnectionState;
@@ -44,6 +89,8 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [aiResponse, setAiResponse] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [completedEntries, setCompletedEntries] = useState<Entry[]>([]);
+  const entryIdRef = useRef(0);
 
   const aliasScope = connectionState.status === 'connected'
     ? makeScope(connectionState.driver, connectionState.user, connectionState.host, connectionState.database)
@@ -154,9 +201,28 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     }
   }
 
+  function snapshotActiveEntry() {
+    if (lastQuery === '') return;
+    setCompletedEntries((prev) => [
+      ...prev,
+      {
+        id: entryIdRef.current++,
+        query: lastQuery,
+        commandMessage,
+        queryState,
+        elapsed,
+        page,
+        aiResponse,
+        aiError,
+      },
+    ]);
+  }
+
   async function handleSubmit(sql: string) {
-    if (sql === '/next') { setPage((p) => p + 1); setLastQuery(sql); return; }
-    if (sql === '/prev') { setPage((p) => Math.max(0, p - 1)); setLastQuery(sql); return; }
+    if (sql === '/next') { setPage((p) => p + 1); return; }
+    if (sql === '/prev') { setPage((p) => Math.max(0, p - 1)); return; }
+
+    snapshotActiveEntry();
 
     if (sql.startsWith('/') || sql.startsWith('\\')) {
       const result = runCommand(sql, {
@@ -174,9 +240,13 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         onDeleteAlias: handleDeleteAlias,
       });
       setLastQuery(sql);
+      setAiResponse('');
+      setAiError(null);
+      setElapsed(null);
+      setPage(0);
+      setQueryState({ status: 'idle' });
       if (result.message) setCommandMessage({ ok: result.ok, text: result.message });
       else setCommandMessage(null);
-      if (!result.message) setQueryState({ status: 'idle' });
       return;
     }
     void handleQuery(sql);
@@ -185,67 +255,74 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const isLoading = queryState.status === 'running' || isStreaming;
   const isConnected = connectionState.status === 'connected';
   const showAi = aiResponse !== '' || isStreaming || aiError !== null;
+  const isCommand = lastQuery.startsWith('/') || lastQuery.startsWith('\\');
 
   return (
-    <Box flexDirection="column" paddingX={1}>
-      <Banner connectionState={connectionState} />
+    <Box flexDirection="column">
+      <Static items={completedEntries}>
+        {(entry) => <EntryView key={entry.id} entry={entry} />}
+      </Static>
 
-      {lastQuery !== '' && (
-        <Box flexDirection="column" marginBottom={2}>
-          <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
-            <Text color={theme.accent} bold>{lastQuery.startsWith('/') || lastQuery.startsWith('\\') ? 'Command:' : 'Query:'} </Text>
-            <Text dimColor>{lastQuery}</Text>
-          </Box>
-          <Box marginTop={1} flexDirection="column">
-            {commandMessage && (
-              <Text color={commandMessage.ok ? theme.accent : theme.error}>
-                {commandMessage.ok ? '✓' : '✗'} {commandMessage.text}
-              </Text>
-            )}
-            {showAi ? (
-              <Box flexDirection="column">
-                <Text color={theme.accent} bold>Explanation:</Text>
-                <Box borderStyle="round" borderColor={PLACEHOLDER} paddingX={1} flexDirection="column">
-                  {aiError ? (
-                    <Text color={theme.error}>✗ {aiError}</Text>
-                  ) : (
-                    <Text color={PLACEHOLDER}>
-                      {aiResponse}
-                      {isStreaming && <Text color={PLACEHOLDER}>{'▋'}</Text>}
-                    </Text>
-                  )}
+      <Box flexDirection="column" paddingX={1}>
+        <Banner connectionState={connectionState} />
+
+        {lastQuery !== '' && (
+          <Box flexDirection="column" marginBottom={2}>
+            <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
+              <Text color={theme.accent} bold>{isCommand ? 'Command:' : 'Query:'} </Text>
+              <Text dimColor>{lastQuery}</Text>
+            </Box>
+            <Box marginTop={1} flexDirection="column">
+              {commandMessage && (
+                <Text color={commandMessage.ok ? theme.accent : theme.error}>
+                  {commandMessage.ok ? '✓' : '✗'} {commandMessage.text}
+                </Text>
+              )}
+              {showAi ? (
+                <Box flexDirection="column">
+                  <Text color={theme.accent} bold>Explanation:</Text>
+                  <Box flexDirection="column">
+                    {aiError ? (
+                      <Text color={theme.error}>✗ {aiError}</Text>
+                    ) : (
+                      <Text color={PLACEHOLDER}>
+                        {aiResponse}
+                        {isStreaming && <Text color={PLACEHOLDER}>{'▋'}</Text>}
+                      </Text>
+                    )}
+                  </Box>
                 </Box>
-              </Box>
-            ) : (
-              !commandMessage && (
-                <QueryResult state={queryState} elapsed={elapsed} page={page} pageSize={PAGE_SIZE} />
-              )
-            )}
+              ) : (
+                !commandMessage && (
+                  <QueryResult state={queryState} elapsed={elapsed} page={page} pageSize={PAGE_SIZE} />
+                )
+              )}
+            </Box>
           </Box>
-        </Box>
-      )}
+        )}
 
-      {isConnected ? (
-        <QueryInput
-          onSubmit={handleSubmit}
-          isLoading={isLoading}
-          onModeChange={setVimMode}
-          vimEnabled={vimEnabled}
-          history={history}
-          aliases={aliases}
-          schema={schema ?? undefined}
-        />
-      ) : (
-        <Text dimColor>Not connected. Press Ctrl+C to exit.</Text>
-      )}
+        {isConnected ? (
+          <QueryInput
+            onSubmit={handleSubmit}
+            isLoading={isLoading}
+            onModeChange={setVimMode}
+            vimEnabled={vimEnabled}
+            history={history}
+            aliases={aliases}
+            schema={schema ?? undefined}
+          />
+        ) : (
+          <Text dimColor>Not connected. Press Ctrl+C to exit.</Text>
+        )}
 
-      {vimEnabled && (
-        <Box marginTop={1}>
-          <Text bold color={vimMode === 'NORMAL' ? theme.normalMode : theme.insertMode}>
-            {isRawModeSupported ? `[${vimMode}]` : ''}
-          </Text>
-        </Box>
-      )}
+        {vimEnabled && (
+          <Box marginTop={1}>
+            <Text bold color={vimMode === 'NORMAL' ? theme.normalMode : theme.insertMode}>
+              {isRawModeSupported ? `[${vimMode}]` : ''}
+            </Text>
+          </Box>
+        )}
+      </Box>
     </Box>
   );
 }
