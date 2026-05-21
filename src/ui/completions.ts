@@ -33,6 +33,10 @@ function getQualifiedTable(value: string, cursor: number): string | null {
 
 function getContextKeyword(value: string, cursor: number): string {
   const before = value.slice(0, cursor).replace(/\w*$/, '');
+  // If parentheses are balanced, we've closed a list and are back at keyword level
+  const opens = (before.match(/\(/g) ?? []).length;
+  const closes = (before.match(/\)/g) ?? []).length;
+  if (opens > 0 && closes >= opens) return '';
   const tokens = before.trim().split(/\s+/).filter(Boolean);
   for (let i = tokens.length - 1; i >= 0; i--) {
     const t = tokens[i].toUpperCase().replace(/[^A-Z]/g, '');
@@ -48,21 +52,27 @@ function matchCase(keyword: string, token: string): string {
 
 export function getSqlCompletions(value: string, cursor: number, schema: Schema): string[] {
   const token = getCurrentToken(value, cursor);
-  if (token.length < 2) return [];
-
   const tokenLower = token.toLowerCase();
+  const ctx = getContextKeyword(value, cursor).toUpperCase();
 
+  // Qualified column: table.col — need at least the dot present
   const qualTable = getQualifiedTable(value, cursor);
   if (qualTable) {
     const cols = schema.columns[qualTable] ?? schema.columns[qualTable.toLowerCase()] ?? [];
-    return cols.filter((c) => c.toLowerCase().startsWith(tokenLower)).slice(0, 8);
+    return token.length === 0
+      ? cols.slice(0, 8)
+      : cols.filter((c) => c.toLowerCase().startsWith(tokenLower)).slice(0, 8);
   }
 
-  const ctx = getContextKeyword(value, cursor).toUpperCase();
-
+  // After FROM / JOIN / INTO / UPDATE: show table names, even with an empty token
   if (TABLE_CONTEXT.has(ctx)) {
-    return schema.tables.filter((t) => t.toLowerCase().startsWith(tokenLower)).slice(0, 8);
+    return token.length === 0
+      ? schema.tables.slice(0, 8)
+      : schema.tables.filter((t) => t.toLowerCase().startsWith(tokenLower)).slice(0, 8);
   }
+
+  // Need at least 1 char for everything else
+  if (token.length < 1) return [];
 
   if (COLUMN_CONTEXT.has(ctx)) {
     const allCols = [...new Set(Object.values(schema.columns).flat())];
@@ -71,7 +81,7 @@ export function getSqlCompletions(value: string, cursor: number, schema: Schema)
     return [...matchingTables, ...matchingCols].slice(0, 8);
   }
 
-  // Default: keywords (case-matched to what the user typed) + tables + columns
+  // Default: keywords (case-matched to user input) + tables + columns
   const matchingKw = SQL_KEYWORDS
     .filter((k) => k.toLowerCase().startsWith(tokenLower))
     .map((k) => matchCase(k, token));
