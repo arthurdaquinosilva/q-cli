@@ -148,7 +148,9 @@ const COMMANDS: Record<string, Command> = {
       const entries = Object.entries(ctx.aliases);
       if (entries.length === 0) return { ok: true, message: 'No aliases saved. Use /save <name> or /alias <name> <SQL>.' };
       const maxLen = Math.max(...entries.map(([n]) => n.length));
-      const lines = entries.map(([n, sql]) => `/${n.padEnd(maxLen)}  →  ${sql}`);
+      const lines = entries.map(([n, sql], i) =>
+        `${i === 0 ? '·' : '  ·'} /${n.padEnd(maxLen)}  →  ${sql}`
+      );
       return { ok: true, message: lines.join('\n') };
     },
   },
