@@ -2,14 +2,7 @@
 
 A beautiful terminal SQL client with vim keybindings and AI-powered query explanation.
 
-```
- ▗▄▄▄▄▖
-▐░    ░▌  Q CLI v0.1.0
-▐░    ░▌
-▐░  ▗▟▌   Connected as  postgres
- ▀▀▀▝▀    Database      mydb
-          Host          localhost
-```
+![Q CLI](./readme-cover.png)
 
 ## Features
 
