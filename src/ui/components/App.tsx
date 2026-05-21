@@ -8,6 +8,7 @@ import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand } from '../../commands/router.js';
 import { streamExplain } from '../../ai/client.js';
 import { loadHistory, saveHistory, addToHistory } from '../../config/history.js';
+import { getAllAliases, saveAlias, deleteAlias, makeScope } from '../../config/aliases.js';
 import { QueryInput } from './QueryInput.js';
 import { QueryResult } from './QueryResult.js';
 import { Banner } from './Banner.js';
@@ -41,6 +42,24 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [aiResponse, setAiResponse] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+
+  const aliasScope = connectionState.status === 'connected'
+    ? makeScope(connectionState.driver, connectionState.user, connectionState.host, connectionState.database)
+    : '';
+  const [aliases, setAliases] = useState<Record<string, string>>(() =>
+    aliasScope ? getAllAliases(aliasScope) : {}
+  );
+
+  function handleSaveAlias(name: string, query: string) {
+    saveAlias(aliasScope, name, query);
+    setAliases(getAllAliases(aliasScope));
+  }
+
+  function handleDeleteAlias(name: string): boolean {
+    const removed = deleteAlias(aliasScope, name);
+    if (removed) setAliases(getAllAliases(aliasScope));
+    return removed;
+  }
 
   useEffect(() => {
     if (!isRawModeSupported) return;
@@ -143,6 +162,9 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         onQuery: (query) => { void handleQuery(query); },
         onChangeDatabase: (db) => { onChangeDatabase?.(db); },
         onExport: handleExport,
+        aliases,
+        onSaveAlias: handleSaveAlias,
+        onDeleteAlias: handleDeleteAlias,
       });
       setLastQuery(sql);
       if (result.message) setCommandMessage({ ok: result.ok, text: result.message });
@@ -203,6 +225,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
           onModeChange={setVimMode}
           vimEnabled={vimEnabled}
           history={history}
+          aliases={aliases}
         />
       ) : (
         <Text dimColor>Not connected. Press Ctrl+C to exit.</Text>

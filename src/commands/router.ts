@@ -1,4 +1,5 @@
 import type { Driver } from '../db/client.js';
+import { expandAlias } from '../config/aliases.js';
 
 export interface CommandResult {
   ok: boolean;
@@ -16,6 +17,10 @@ export interface CommandContext {
   onQuery: (sql: string) => void;
   onChangeDatabase: (database: string) => void;
   onExport: (format: 'csv' | 'json') => void;
+  // alias context
+  aliases: Record<string, string>;
+  onSaveAlias: (name: string, query: string) => void;
+  onDeleteAlias: (name: string) => boolean;
 }
 
 interface Command {
@@ -33,6 +38,11 @@ const DB_QUERIES: Record<Driver, { databases: string; tables: string; users: str
     databases: `SHOW DATABASES`,
     tables: `SHOW TABLES`,
     users: `SELECT user, host FROM mysql.user ORDER BY user`,
+  },
+  sqlite: {
+    databases: `SELECT name FROM pragma_database_list`,
+    tables: `SELECT name FROM sqlite_master WHERE type='table' ORDER BY name`,
+    users: `SELECT 'SQLite has no users' AS message`,
   },
 };
 
@@ -111,22 +121,80 @@ const COMMANDS: Record<string, Command> = {
       return { ok: true, message: '' };
     },
   },
+  'save': {
+    description: 'Save last query as an alias: /save <name>',
+    run: (ctx) => {
+      const name = ctx.args.trim();
+      if (!name) return { ok: false, message: 'Usage: /save <name>' };
+      if (!ctx.lastSqlQuery) return { ok: false, message: 'No query to save — run a SQL query first.' };
+      if (/\s/.test(name)) return { ok: false, message: 'Alias name must not contain spaces.' };
+      ctx.onSaveAlias(name, ctx.lastSqlQuery);
+      return { ok: true, message: `Saved /${name}` };
+    },
+  },
+  'alias': {
+    description: 'Define an alias inline: /alias <name> <SQL>',
+    run: (ctx) => {
+      const [name, ...rest] = ctx.args.trim().split(/\s+/);
+      if (!name || rest.length === 0) return { ok: false, message: 'Usage: /alias <name> <SQL>' };
+      if (/\s/.test(name)) return { ok: false, message: 'Alias name must not contain spaces.' };
+      ctx.onSaveAlias(name, rest.join(' '));
+      return { ok: true, message: `Saved /${name}` };
+    },
+  },
+  'aliases': {
+    description: 'List all saved aliases for this database',
+    run: (ctx) => {
+      const entries = Object.entries(ctx.aliases);
+      if (entries.length === 0) return { ok: true, message: 'No aliases saved. Use /save <name> or /alias <name> <SQL>.' };
+      const maxLen = Math.max(...entries.map(([n]) => n.length));
+      const lines = entries.map(([n, sql]) => `/${n.padEnd(maxLen)}  →  ${sql}`);
+      return { ok: true, message: lines.join('\n') };
+    },
+  },
+  'unalias': {
+    description: 'Remove a saved alias: /unalias <name>',
+    run: (ctx) => {
+      const name = ctx.args.trim();
+      if (!name) return { ok: false, message: 'Usage: /unalias <name>' };
+      const removed = ctx.onDeleteAlias(name);
+      return removed
+        ? { ok: true, message: `Removed /${name}` }
+        : { ok: false, message: `No alias named /${name}` };
+    },
+  },
 };
 
-export const COMMAND_LIST = Object.entries(COMMANDS).map(([name, cmd]) => ({
+export const BUILTIN_COMMAND_LIST = Object.entries(COMMANDS).map(([name, cmd]) => ({
   name,
   description: cmd.description,
 }));
 
-export function getCompletions(partial: string): string[] {
-  return COMMAND_LIST.map((c) => c.name).filter((n) => n.startsWith(partial));
+export function getCompletions(partial: string, aliases: Record<string, string> = {}): string[] {
+  const builtins = BUILTIN_COMMAND_LIST.map((c) => c.name).filter((n) => n.startsWith(partial));
+  const userAliases = Object.keys(aliases).filter((n) => n.startsWith(partial) && !COMMANDS[n]);
+  return [...builtins, ...userAliases];
 }
 
 export function runCommand(input: string, ctx: Omit<CommandContext, 'args'>): CommandResult {
-  const [rawName, ...rest] = input.slice(1).trim().split(/\s+/);
+  const trimmed = input.slice(1).trim();
+  const spaceIdx = trimmed.indexOf(' ');
+  const rawName = spaceIdx === -1 ? trimmed : trimmed.slice(0, spaceIdx);
+  const args = spaceIdx === -1 ? '' : trimmed.slice(spaceIdx + 1);
+
   const name = PSQL_ALIASES[rawName ?? ''] ?? rawName ?? '';
   const cmd = COMMANDS[name];
   const prefix = input.startsWith('\\') ? '\\' : '/';
-  if (!cmd) return { ok: false, message: `Unknown command: ${prefix}${rawName}` };
-  return cmd.run({ ...ctx, args: rest.join(' ') });
+
+  if (cmd) return cmd.run({ ...ctx, args });
+
+  // Fall through to user aliases
+  const template = ctx.aliases[rawName];
+  if (template) {
+    const expanded = expandAlias(template, args);
+    ctx.onQuery(expanded);
+    return { ok: true, message: '' };
+  }
+
+  return { ok: false, message: `Unknown command: ${prefix}${rawName}` };
 }

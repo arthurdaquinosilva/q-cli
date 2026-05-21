@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { useVimInput, type VimMode } from '../hooks/useVimInput.js';
-import { COMMAND_LIST, getCompletions } from '../../commands/router.js';
+import { BUILTIN_COMMAND_LIST, getCompletions } from '../../commands/router.js';
 
 const BG = '#1e1b4b';
 const ACCENT = '#818cf8';
@@ -32,7 +32,7 @@ const HINTS = {
   ],
 } as const;
 
-const DESC_MAP = Object.fromEntries(COMMAND_LIST.map((c) => [c.name, c.description]));
+const BUILTIN_DESC_MAP = Object.fromEntries(BUILTIN_COMMAND_LIST.map((c) => [c.name, c.description]));
 
 interface QueryInputProps {
   onSubmit: (query: string) => void;
@@ -40,13 +40,14 @@ interface QueryInputProps {
   onModeChange?: (mode: VimMode) => void;
   vimEnabled?: boolean;
   history?: string[];
+  aliases?: Record<string, string>;
 }
 
-export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = true, history = [] }: QueryInputProps) {
+export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = true, history = [], aliases = {} }: QueryInputProps) {
   function handleTab(current: string): string | null {
     if (!current.startsWith('/')) return null;
     const partial = current.slice(1);
-    const matches = getCompletions(partial);
+    const matches = getCompletions(partial, aliases);
     if (matches.length === 0) return null;
     if (matches.length === 1) return `/${matches[0]}`;
     let prefix = matches[0];
@@ -59,12 +60,22 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
 
   const { value, cursor, mode, suggestionIndex } = useVimInput(
     onSubmit, !isLoading, vimEnabled, handleTab, history,
-    (v) => v.startsWith('/') ? getCompletions(v.slice(1)) : [],
+    (v) => v.startsWith('/') ? getCompletions(v.slice(1), aliases) : [],
   );
 
   const isCommand = value.startsWith('/');
   const partial = isCommand ? value.slice(1) : '';
-  const suggestions = isCommand ? getCompletions(partial) : [];
+  const suggestions = isCommand ? getCompletions(partial, aliases) : [];
+
+  const descMap: Record<string, string> = {
+    ...BUILTIN_DESC_MAP,
+    ...Object.fromEntries(
+      Object.entries(aliases).map(([name, sql]) => [
+        name,
+        sql.length > 55 ? sql.slice(0, 55) + '…' : sql,
+      ])
+    ),
+  };
 
   useEffect(() => {
     onModeChange?.(mode);
@@ -134,7 +145,7 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
                   <Text color={ACCENT} bold>{partial}</Text>
                   <Text dimColor={!selected} color={selected ? ACCENT : undefined}>{name.slice(partial.length)}</Text>
                 </Text>
-                <Text dimColor>{'  —  '}{DESC_MAP[name]}</Text>
+                <Text dimColor>{'  —  '}{descMap[name]}</Text>
               </Box>
             );
           })}
