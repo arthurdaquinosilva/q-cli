@@ -27,11 +27,6 @@
     }
   },
   "type": "module",
-  "onlyBuiltDependencies": [
-    "better-sqlite3",
-    "esbuild",
-    "keytar"
-  ],
   "dependencies": {
     "better-sqlite3": "^12.10.0",
     "ink": "^7.0.3",
