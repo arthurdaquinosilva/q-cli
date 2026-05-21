@@ -100,9 +100,9 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
   const emptyLine = ' '.repeat(innerWidth);
 
   const isEmpty = value === '';
-  const before = value.slice(0, cursor);
-  const atCursor = value[cursor] ?? ' ';
-  const after = value.slice(cursor + 1);
+  const before = value.slice(0, cursorPos);
+  const atCursor = value[cursorPos] ?? ' ';
+  const after = value.slice(cursorPos + 1);
 
   const placeholder = 'Type a SQL query…';
   const contentLen = isEmpty
