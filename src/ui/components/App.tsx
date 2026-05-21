@@ -48,11 +48,13 @@ function EntryView({ entry }: { entry: Entry }) {
         {showAi ? (
           <Box flexDirection="column">
             <Text color={theme.accent} bold>Explanation:</Text>
-            {entry.aiError ? (
-              <Text color={theme.error}>✗ {entry.aiError}</Text>
-            ) : (
-              <Text color={PLACEHOLDER}>{entry.aiResponse}</Text>
-            )}
+            <Box flexDirection="column" marginTop={1}>
+              {entry.aiError ? (
+                <Text color={theme.error}>✗ {entry.aiError}</Text>
+              ) : (
+                <Text color={PLACEHOLDER}>{entry.aiResponse}</Text>
+              )}
+            </Box>
           </Box>
         ) : (
           !entry.commandMessage && (
@@ -91,7 +93,6 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [aiError, setAiError] = useState<string | null>(null);
   const [completedEntries, setCompletedEntries] = useState<Entry[]>([]);
   const entryIdRef = useRef(0);
-  const [initialConnectionState] = useState(connectionState);
 
   const aliasScope = connectionState.status === 'connected'
     ? makeScope(connectionState.driver, connectionState.user, connectionState.host, connectionState.database)
@@ -260,19 +261,12 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
 
   return (
     <Box flexDirection="column">
-      <Static items={[initialConnectionState]}>
-        {(cs) => (
-          <Box key="banner" paddingX={1}>
-            <Banner connectionState={cs} />
-          </Box>
-        )}
-      </Static>
-
       <Static items={completedEntries}>
         {(entry) => <EntryView key={entry.id} entry={entry} />}
       </Static>
 
       <Box flexDirection="column" paddingX={1}>
+        {lastQuery === '' && <Banner connectionState={connectionState} />}
 
         {lastQuery !== '' && (
           <Box flexDirection="column" marginBottom={2}>
@@ -289,7 +283,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
               {showAi ? (
                 <Box flexDirection="column">
                   <Text color={theme.accent} bold>Explanation:</Text>
-                  <Box flexDirection="column">
+                  <Box flexDirection="column" marginTop={1}>
                     {aiError ? (
                       <Text color={theme.error}>✗ {aiError}</Text>
                     ) : (
