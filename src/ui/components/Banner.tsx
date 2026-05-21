@@ -6,9 +6,10 @@ import type { ConnectionState } from '../../db/client.js';
 import { theme } from '../theme.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const pkg = JSON.parse(
-  readFileSync(join(__dirname, '../../../package.json'), 'utf8'),
-) as { version: string };
+let pkg = { version: 'unknown' };
+try {
+  pkg = JSON.parse(readFileSync(join(__dirname, '../../../package.json'), 'utf8')) as { version: string };
+} catch { /* non-critical */ }
 
 const LOGO = [
   ' ▗▄▄▄▄▖',

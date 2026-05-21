@@ -40,12 +40,12 @@
 - **Done when:** `SELECT id, name FROM users` renders as a clean, aligned table with headers
 
 ### B.2 — Responsive column layout
-- [ ] Detect terminal width. If the table is wider than the terminal, automatically switch to expanded (vertical key=value) layout. Switch back when the terminal is wide enough.
+- [x] Detect terminal width. If the table is wider than the terminal, automatically switch to expanded (vertical key=value) layout. Switch back when the terminal is wide enough.
 - **Depends on:** B.1
 - **Done when:** a wide query auto-switches to expanded mode; resizing the terminal re-evaluates layout
 
 ### B.3 — Large result set truncation
-- [ ] If a result set exceeds 500 rows, display the first 500 and show a visible warning: "Showing 500 of N rows."
+- [x] If a result set exceeds 500 rows, display the first 500 and show a visible warning: "Showing 500 of N rows."
 - **Depends on:** B.1
 - **Done when:** a query returning 1000+ rows shows the warning and exactly 500 rows
 
@@ -83,7 +83,7 @@
 ## Phase D: Welcome screen and connection UX
 
 ### D.1 — Welcome screen
-- [ ] On startup (before a query is run), display a welcome screen: tool name, version, connected database name, and a short hint about available slash commands.
+- [x] On startup (before a query is run), display a welcome screen: tool name, version, connected database name, and a short hint about available slash commands.
 - **Depends on:** A.3
 - **Done when:** startup shows the welcome screen with correct connection info; it clears when the first query is submitted
 
@@ -97,7 +97,7 @@
 ## Phase E: Polish and ship
 
 ### E.1 — Error handling audit
-- [ ] Review all database errors, connection errors, and AI errors. Ensure every error path shows a user-readable message and never crashes the process.
+- [x] Review all database errors, connection errors, and AI errors. Ensure every error path shows a user-readable message and never crashes the process.
 - **Depends on:** all of Phase D
 - **Done when:** killing the DB mid-session, sending a malformed query, and disconnecting Ollama all show errors without crashing
 
@@ -107,7 +107,7 @@
 - **Done when:** a fresh clone + README produces a running CLI with a real DB connection in under 5 minutes
 
 ### E.3 — Package for local install
-- [ ] Configure `tsup` to bundle the CLI. Add a `bin` entry to `package.json` so `pnpm install -g .` makes `sql-cli` available globally.
+- [x] Configure `tsup` to bundle the CLI. Add a `bin` entry to `package.json` so `pnpm install -g .` makes `q-cli` available globally.
 - **Depends on:** E.2
 - **Done when:** after global install, `sql-cli --connection <dsn>` works from any directory
 

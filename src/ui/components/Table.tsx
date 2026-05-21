@@ -35,12 +35,37 @@ function hline(
   return left + segments.join(mid) + right;
 }
 
+export { cellValue, colWidths };
+
 interface TableProps {
   columns: string[];
   rows: Record<string, unknown>[];
+  expanded?: boolean;
 }
 
-export function Table({ columns, rows }: TableProps) {
+function ExpandedTable({ columns, rows }: { columns: string[]; rows: Record<string, unknown>[] }) {
+  const keyWidth = columns.reduce((max, col) => Math.max(max, col.length), 0);
+  return (
+    <Box flexDirection="column">
+      {rows.map((row, i) => (
+        <Box key={i} flexDirection="column" marginBottom={i < rows.length - 1 ? 1 : 0}>
+          <Text color={BORDER}>{`─[ Record ${i + 1} ]${'─'.repeat(Math.max(0, keyWidth + 14 - String(i + 1).length))}`}</Text>
+          {columns.map((col) => (
+            <Box key={col}>
+              <Text color={INDIGO} bold>{col.padEnd(keyWidth)}</Text>
+              <Text color={BORDER}>{' │ '}</Text>
+              <Text>{cellValue(row[col])}</Text>
+            </Box>
+          ))}
+        </Box>
+      ))}
+    </Box>
+  );
+}
+
+export function Table({ columns, rows, expanded = false }: TableProps) {
+  if (expanded) return <ExpandedTable columns={columns} rows={rows} />;
+
   const widths = colWidths(columns, rows);
 
   const topLine = hline(widths, '╭', '┬', '╮');
