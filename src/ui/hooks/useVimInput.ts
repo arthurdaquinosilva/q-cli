@@ -129,14 +129,9 @@ export function useVimInput(
           if (key.rightArrow) return { ...s, cursor: Math.min(s.value.length, s.cursor + 1) };
           if (key.tab) {
             const sugs = getSuggestions?.(s.value, s.cursor) ?? [];
-            if (sugs.length > 0 && s.suggestionIndex >= 0) {
-              const sug = sugs[s.suggestionIndex];
-              if (onSuggestionAccept) {
-                const r = onSuggestionAccept(s.value, s.cursor, sug);
-                return { ...s, value: r.value, cursor: r.cursor, suggestionIndex: -1 };
-              }
-              const val = `/${sug}`;
-              return { ...s, value: val, cursor: val.length, suggestionIndex: -1 };
+            if (sugs.length > 0) {
+              const next = s.suggestionIndex < sugs.length - 1 ? s.suggestionIndex + 1 : 0;
+              return { ...s, suggestionIndex: next };
             }
             const completed = onTab?.(s.value);
             if (completed != null) return { ...s, value: completed, cursor: completed.length };

@@ -41,6 +41,11 @@ function getContextKeyword(value: string, cursor: number): string {
   return '';
 }
 
+function matchCase(keyword: string, token: string): string {
+  const isLower = token === token.toLowerCase();
+  return isLower ? keyword.toLowerCase() : keyword.toUpperCase();
+}
+
 export function getSqlCompletions(value: string, cursor: number, schema: Schema): string[] {
   const token = getCurrentToken(value, cursor);
   if (token.length < 2) return [];
@@ -66,8 +71,10 @@ export function getSqlCompletions(value: string, cursor: number, schema: Schema)
     return [...matchingTables, ...matchingCols].slice(0, 8);
   }
 
-  // Default: keywords first, then tables and columns
-  const matchingKw = SQL_KEYWORDS.filter((k) => k.toLowerCase().startsWith(tokenLower));
+  // Default: keywords (case-matched to what the user typed) + tables + columns
+  const matchingKw = SQL_KEYWORDS
+    .filter((k) => k.toLowerCase().startsWith(tokenLower))
+    .map((k) => matchCase(k, token));
   const matchingTables = schema.tables.filter((t) => t.toLowerCase().startsWith(tokenLower));
   const allCols = [...new Set(Object.values(schema.columns).flat())];
   const matchingCols = allCols.filter((c) => c.toLowerCase().startsWith(tokenLower));

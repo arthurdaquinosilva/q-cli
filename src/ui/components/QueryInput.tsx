@@ -173,7 +173,7 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
               </Box>
             );
           })}
-          <Text dimColor>↑↓ navigate  Tab/Enter select</Text>
+          <Text dimColor>Tab/↑↓ navigate  Enter select</Text>
         </Box>
       )}
 
