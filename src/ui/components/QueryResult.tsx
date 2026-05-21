@@ -4,6 +4,23 @@ import type { QueryState } from '../../db/query.js';
 import { Table, cellValue, colWidths } from './Table.js';
 import { theme } from '../theme.js';
 
+const ERROR_BG = '#3b0f0f';
+const ERROR_FG = '#ff4444';
+
+export function ErrorBox({ message }: { message: string }) {
+  const cols = Math.max(0, (process.stdout.columns ?? 80) - 2);
+  const blank = ' '.repeat(cols);
+  const label = `  ✗  ${message}`;
+  const padded = label.length < cols ? label + ' '.repeat(cols - label.length) : label;
+  return (
+    <Box flexDirection="column" marginTop={1}>
+      <Text backgroundColor={ERROR_BG}>{blank}</Text>
+      <Text backgroundColor={ERROR_BG} color={ERROR_FG} bold>{padded}</Text>
+      <Text backgroundColor={ERROR_BG}>{blank}</Text>
+    </Box>
+  );
+}
+
 interface QueryResultProps {
   state: QueryState;
   elapsed: number | null;
@@ -36,8 +53,8 @@ export function QueryResult({ state, elapsed, page, pageSize }: QueryResultProps
   if (state.status === 'error') {
     return (
       <Box flexDirection="column">
-        <Text color={theme.error}>✗ {state.message}</Text>
-        {elapsed !== null && <Text color={theme.accent}>{formatDuration(elapsed)}</Text>}
+        <ErrorBox message={state.message} />
+        {elapsed !== null && <Text color={theme.accent} dimColor>{formatDuration(elapsed)}</Text>}
       </Box>
     );
   }

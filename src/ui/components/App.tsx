@@ -11,7 +11,7 @@ import { loadHistory, saveHistory, addToHistory } from '../../config/history.js'
 import { getAllAliases, saveAlias, deleteAlias, makeScope } from '../../config/aliases.js';
 import { fetchSchema, type Schema } from '../../db/schema.js';
 import { QueryInput } from './QueryInput.js';
-import { QueryResult } from './QueryResult.js';
+import { QueryResult, ErrorBox } from './QueryResult.js';
 import { Banner } from './Banner.js';
 import { theme } from '../theme.js';
 import type { VimMode } from '../hooks/useVimInput.js';
@@ -41,16 +41,16 @@ function EntryView({ entry }: { entry: Entry }) {
       </Box>
       <Box marginTop={1} flexDirection="column">
         {entry.commandMessage && (
-          <Text color={entry.commandMessage.ok ? theme.accent : theme.error}>
-            {entry.commandMessage.ok ? '✓' : '✗'} {entry.commandMessage.text}
-          </Text>
+          entry.commandMessage.ok
+            ? <Text color={theme.accent}>✓ {entry.commandMessage.text}</Text>
+            : <ErrorBox message={entry.commandMessage.text} />
         )}
         {showAi ? (
           <Box flexDirection="column">
             <Text color={theme.accent} bold>Explanation:</Text>
             <Box flexDirection="column" marginTop={1}>
               {entry.aiError ? (
-                <Text color={theme.error}>✗ {entry.aiError}</Text>
+                <ErrorBox message={entry.aiError} />
               ) : (
                 <Text color={PLACEHOLDER}>{entry.aiResponse}</Text>
               )}
@@ -276,16 +276,16 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
             </Box>
             <Box marginTop={1} flexDirection="column">
               {commandMessage && (
-                <Text color={commandMessage.ok ? theme.accent : theme.error}>
-                  {commandMessage.ok ? '✓' : '✗'} {commandMessage.text}
-                </Text>
+                commandMessage.ok
+                  ? <Text color={theme.accent}>✓ {commandMessage.text}</Text>
+                  : <ErrorBox message={commandMessage.text} />
               )}
               {showAi ? (
                 <Box flexDirection="column">
                   <Text color={theme.accent} bold>Explanation:</Text>
                   <Box flexDirection="column" marginTop={1}>
                     {aiError ? (
-                      <Text color={theme.error}>✗ {aiError}</Text>
+                      <ErrorBox message={aiError} />
                     ) : (
                       <Text color={PLACEHOLDER}>
                         {aiResponse}
