@@ -1,6 +1,6 @@
 # Querky
 
-A beautiful terminal SQL client with vim keybindings and AI-powered query explanation.
+A quirky terminal SQL client with vim keybindings, schema-aware autocomplete, query aliases, and AI-powered query explanation.
 
 ![Querky](./readme-cover.png)
 
@@ -15,6 +15,8 @@ A beautiful terminal SQL client with vim keybindings and AI-powered query explan
 - **Connection wizard** — interactive form on startup if no connection string is provided
 - **Multiple drivers** — PostgreSQL, MySQL, and SQLite
 - **Credential storage** — passwords saved to OS keychain automatically
+- **Schema-aware autocomplete** — Tab-completes table names, column names, and SQL keywords based on context
+- **Query aliases** — save queries under short names, scoped per database, with positional and named parameters
 - **Pagination** — navigate large result sets with `/next` and `/prev`
 - **Export** — save results to CSV or JSON
 
@@ -80,7 +82,7 @@ Querky can explain your queries using any OpenAI-compatible API.
 
 ```bash
 # Add to ~/.zshrc or ~/.bashrc
-export Q_CLI_API_KEY=gsk_...
+export QUERKY_API_KEY=gsk_...
 ```
 
 3. Connect with Groq:
@@ -125,6 +127,21 @@ Ollama is the default endpoint (`http://localhost:11434/v1`).
 | `/unalias <name>` | Remove a saved alias |
 
 Type `/` and use **Tab** or **↑↓** to navigate and complete commands.
+
+---
+
+## Schema-aware Autocomplete
+
+Querky fetches your schema on connect and completes as you type. Press **Tab** to cycle through suggestions, **Enter** to accept.
+
+| Context | Completes |
+|---|---|
+| After `FROM`, `JOIN`, `INTO` | Table names |
+| After `SELECT`, `WHERE`, `ON` | Column names + tables |
+| After `table.` | Columns for that specific table |
+| Anywhere else | SQL keywords + tables + columns |
+
+Works with PostgreSQL, MySQL, and SQLite. Suggestions appear after 1 character.
 
 ---
 
@@ -199,7 +216,7 @@ Disable vim mode with `/toggle-vim-mode` or pass `--no-vim` for plain input.
 | `--connection`, `-c` | — | Connection string (optional — wizard shown if omitted) |
 | `--ai-url` | `http://localhost:11434/v1` | OpenAI-compatible API base URL |
 | `--ai-model` | `llama3.2` | Model name |
-| `--api-key` | `$Q_CLI_API_KEY` | API key for remote endpoints |
+| `--api-key` | `$QUERKY_API_KEY` | API key for remote endpoints |
 
 ---
 
