@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "description": "A beautiful SQL CLI with vim mode and AI features",
   "main": "dist/index.js",
+  "files": [
+    "dist"
+  ],
   "bin": {
     "q-cli": "dist/index.js"
   },
