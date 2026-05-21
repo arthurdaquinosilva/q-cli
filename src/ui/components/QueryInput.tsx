@@ -2,6 +2,7 @@ import { useEffect } from 'react';
 import { Box, Text } from 'ink';
 import { useVimInput, type VimMode } from '../hooks/useVimInput.js';
 import { BUILTIN_COMMAND_LIST, getCompletions } from '../../commands/router.js';
+import { getSqlCompletions, getCurrentToken, applyCompletion, type Schema } from '../completions.js';
 
 const BG = '#1e1b4b';
 const ACCENT = '#818cf8';
@@ -41,9 +42,10 @@ interface QueryInputProps {
   vimEnabled?: boolean;
   history?: string[];
   aliases?: Record<string, string>;
+  schema?: Schema;
 }
 
-export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = true, history = [], aliases = {} }: QueryInputProps) {
+export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = true, history = [], aliases = {}, schema }: QueryInputProps) {
   function handleTab(current: string): string | null {
     if (!current.startsWith('/')) return null;
     const partial = current.slice(1);
@@ -58,14 +60,26 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
     return `/${prefix}`;
   }
 
-  const { value, cursor, mode, suggestionIndex } = useVimInput(
+  function handleSuggestionAccept(v: string, cur: number, suggestion: string) {
+    if (v.startsWith('/')) {
+      const val = `/${suggestion}`;
+      return { value: val, cursor: val.length };
+    }
+    return applyCompletion(v, cur, suggestion);
+  }
+
+  const { value, cursor: cursorPos, mode, suggestionIndex } = useVimInput(
     onSubmit, !isLoading, vimEnabled, handleTab, history,
-    (v) => v.startsWith('/') ? getCompletions(v.slice(1), aliases) : [],
+    (v, cur) => v.startsWith('/') ? getCompletions(v.slice(1), aliases) : (schema ? getSqlCompletions(v, cur, schema) : []),
+    handleSuggestionAccept,
   );
 
   const isCommand = value.startsWith('/');
   const partial = isCommand ? value.slice(1) : '';
-  const suggestions = isCommand ? getCompletions(partial, aliases) : [];
+  const suggestions = isCommand
+    ? getCompletions(partial, aliases)
+    : (schema ? getSqlCompletions(value, cursorPos, schema) : []);
+  const sqlToken = isCommand ? '' : getCurrentToken(value, cursorPos);
 
   const descMap: Record<string, string> = {
     ...BUILTIN_DESC_MAP,
@@ -138,14 +152,24 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
         <Box flexDirection="column" marginTop={1} marginLeft={2}>
           {suggestions.map((name, i) => {
             const selected = i === suggestionIndex;
+            if (isCommand) {
+              return (
+                <Box key={name}>
+                  <Text>
+                    <Text dimColor={!selected} color={selected ? ACCENT : undefined}>/</Text>
+                    <Text color={ACCENT} bold>{partial}</Text>
+                    <Text dimColor={!selected} color={selected ? ACCENT : undefined}>{name.slice(partial.length)}</Text>
+                  </Text>
+                  <Text dimColor>{'  —  '}{descMap[name]}</Text>
+                </Box>
+              );
+            }
             return (
               <Box key={name}>
                 <Text>
-                  <Text dimColor={!selected} color={selected ? ACCENT : undefined}>/</Text>
-                  <Text color={ACCENT} bold>{partial}</Text>
-                  <Text dimColor={!selected} color={selected ? ACCENT : undefined}>{name.slice(partial.length)}</Text>
+                  <Text color={ACCENT} bold>{sqlToken}</Text>
+                  <Text dimColor={!selected} color={selected ? ACCENT : undefined}>{name.slice(sqlToken.length)}</Text>
                 </Text>
-                <Text dimColor>{'  —  '}{descMap[name]}</Text>
               </Box>
             );
           })}

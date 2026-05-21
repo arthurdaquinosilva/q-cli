@@ -9,6 +9,7 @@ import { runCommand } from '../../commands/router.js';
 import { streamExplain } from '../../ai/client.js';
 import { loadHistory, saveHistory, addToHistory } from '../../config/history.js';
 import { getAllAliases, saveAlias, deleteAlias, makeScope } from '../../config/aliases.js';
+import { fetchSchema, type Schema } from '../../db/schema.js';
 import { QueryInput } from './QueryInput.js';
 import { QueryResult } from './QueryResult.js';
 import { Banner } from './Banner.js';
@@ -39,6 +40,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [vimEnabled, setVimEnabled] = useState(true);
   const [commandMessage, setCommandMessage] = useState<{ text: string; ok: boolean } | null>(null);
   const [history, setHistory] = useState<string[]>(() => loadHistory());
+  const [schema, setSchema] = useState<Schema | null>(null);
   const [aiResponse, setAiResponse] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
@@ -60,6 +62,11 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     if (removed) setAliases(getAllAliases(aliasScope));
     return removed;
   }
+
+  useEffect(() => {
+    if (connectionState.status !== 'connected') { setSchema(null); return; }
+    void fetchSchema(connectionState.client, connectionState.driver).then(setSchema);
+  }, [connectionState]);
 
   useEffect(() => {
     if (!isRawModeSupported) return;
@@ -226,6 +233,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
           vimEnabled={vimEnabled}
           history={history}
           aliases={aliases}
+          schema={schema ?? undefined}
         />
       ) : (
         <Text dimColor>Not connected. Press Ctrl+C to exit.</Text>
