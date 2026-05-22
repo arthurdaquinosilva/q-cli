@@ -9,8 +9,11 @@ export interface ShellResult {
   exitCode: number;
 }
 
-const ANSI_RE = /\x1B\[[0-9;]*[mGKHFJKST]/g;
-const stripAnsi = (s: string) => s.replace(ANSI_RE, '');
+// Strip cursor-movement and screen-control codes but preserve SGR color codes (m).
+// Programs won't produce colors if stdout isn't a TTY, so we set CLICOLOR_FORCE
+// and COLORTERM in the exec env to hint them to use colors anyway.
+const ANSI_CONTROL_RE = /\x1B\[(?:[0-9;]*[GKHJFST]|[?][0-9;]*[hl])/g;
+const stripControl = (s: string) => s.replace(ANSI_CONTROL_RE, '').replace(/\r/g, '');
 
 const MAX_LINES = 200;
 
@@ -57,11 +60,17 @@ export function runShell(command: string): Promise<ShellResult> {
   }
 
   const shell = process.env.SHELL ?? '/bin/sh';
+  const env = {
+    ...process.env,
+    CLICOLOR_FORCE: '1',   // BSD + newer GNU coreutils: force color even without TTY
+    COLORTERM: 'truecolor', // hint: terminal supports 24-bit color
+    FORCE_COLOR: '3',       // Node.js / chalk-based CLIs
+  };
   return new Promise((resolve) => {
-    exec(command, { shell, timeout: 30_000 }, (err, stdout, stderr) => {
+    exec(command, { shell, timeout: 30_000, env }, (err, stdout, stderr) => {
       resolve({
-        stdout: trimLines(stripAnsi(stdout).trimEnd()),
-        stderr: trimLines(stripAnsi(stderr).trimEnd()),
+        stdout: trimLines(stripControl(stdout).trimEnd()),
+        stderr: trimLines(stripControl(stderr).trimEnd()),
         exitCode: err?.code ?? 0,
       });
     });

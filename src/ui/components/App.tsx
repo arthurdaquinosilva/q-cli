@@ -46,7 +46,7 @@ function EntryView({ entry }: { entry: Entry }) {
       <Box marginTop={1} flexDirection="column">
         {isShell ? (
           entry.shellOutput !== null && (
-            <Text dimColor>{entry.shellOutput || '(no output)'}</Text>
+            <Text>{entry.shellOutput || '(no output)'}</Text>
           )
         ) : (
           <>
@@ -329,7 +329,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
               {isShellEntry ? (
                 isShellRunning
                   ? <Text dimColor>running…</Text>
-                  : <Text dimColor>{shellOutput ?? ''}</Text>
+                  : <Text>{shellOutput ?? ''}</Text>
               ) : (
                 <>
                   {commandMessage && (
