@@ -289,6 +289,10 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         onChangeDatabase: (db) => { onChangeDatabase?.(db); },
         onExport: handleExport,
         onClear: () => {
+          // Erase the visible screen and scrollback buffer before React re-renders
+          // so the banner appears at the very top with no residual output above it.
+          // \x1B[2J = clear screen, \x1B[3J = clear scrollback, \x1B[H = cursor home.
+          process.stdout.write('\x1B[2J\x1B[3J\x1B[H');
           setCompletedEntries([]);
           setLastQuery('');
           setCommandMessage(null);
