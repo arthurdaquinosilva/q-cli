@@ -101,12 +101,12 @@ export function useVimInput(
     const ttyStdin = process.stdin as { setRawMode?: (mode: boolean) => void };
     try {
       writeFileSync(tmpPath, initialContent);
+      process.stdout.write('\x1B[?25h'); // show cursor for editor
       ttyStdin.setRawMode?.(false);
       spawnSync(editor, [tmpPath], { stdio: 'inherit' });
-      // Clear visible screen so Ink redraws from a known position.
-      // Without this, Ink's "erase N lines" cursor math is wrong after the
-      // editor leaves the cursor at an unpredictable row.
-      process.stdout.write('\x1B[2J\x1B[H');
+      // Clear visible screen so Ink redraws from a known position, then
+      // re-hide the cursor (App hides it on mount but the editor showed it).
+      process.stdout.write('\x1B[2J\x1B[H\x1B[?25l');
       ttyStdin.setRawMode?.(true);
       const content = readFileSync(tmpPath, 'utf8').trimEnd();
       setState((s) => ({ ...s, pendingEditor: null, value: content, cursor: content.length, mode: 'INSERT' }));

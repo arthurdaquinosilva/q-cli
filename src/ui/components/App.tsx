@@ -154,6 +154,14 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     return () => { process.off('SIGCONT', handleCont); };
   }, [isRawModeSupported]);
 
+  // Hide the terminal cursor — we render our own ▌ indicator.
+  // Restored on unmount so the shell gets its cursor back on exit.
+  useEffect(() => {
+    if (!isRawModeSupported) return;
+    process.stdout.write('\x1B[?25l');
+    return () => { process.stdout.write('\x1B[?25h'); };
+  }, [isRawModeSupported]);
+
   useInput(
     (input, key) => {
       if (key.ctrl && input === 'c') exit();

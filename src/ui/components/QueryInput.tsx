@@ -210,7 +210,11 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
   const contentLen = isEmpty
     ? 4 + placeholder.length + 1 // +1 for the ▌ cursor rendered in placeholder state
     : 4 + before.length + 1 + after.length;
-  const pad = ' '.repeat(Math.max(0, innerWidth - contentLen));
+  // Pad enough spaces to fill ALL wrapped lines with the BG color, not just
+  // the first line. ceil(contentLen / innerWidth) gives total lines used;
+  // multiply back to get the total chars that need to be painted.
+  const linesUsed = Math.max(1, Math.ceil(contentLen / innerWidth));
+  const pad = ' '.repeat(linesUsed * innerWidth - contentLen);
 
 
   const SEP = '  |  ';
