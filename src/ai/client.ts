@@ -14,6 +14,8 @@ export async function* streamExplain(
   let res: Response;
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (apiKey) headers['Authorization'] = `Bearer ${apiKey}`;
+  const isDefaultOllama = baseUrl === 'http://localhost:11434/v1';
+
   try {
     res = await fetch(`${baseUrl}/chat/completions`, {
       method: 'POST',
@@ -25,16 +27,28 @@ export async function* streamExplain(
       }),
     });
   } catch {
-    throw new Error('Could not reach Ollama — is it running? Try: ollama serve');
+    if (isDefaultOllama) {
+      throw new Error(
+        'No AI model configured.\n\n' +
+        'Option A — run Ollama locally (free, offline):\n' +
+        '  ollama serve\n' +
+        '  ollama pull llama3.2\n\n' +
+        'Option B — use Groq (free, fast):\n' +
+        '  querky -c <dsn> --ai-url https://api.groq.com/openai/v1 \\\n' +
+        '    --ai-model llama-3.1-8b-instant --api-key YOUR_GROQ_KEY'
+      );
+    }
+    throw new Error(`Could not reach ${baseUrl} — check your --ai-url and connection.`);
   }
 
   if (!res.ok) {
     const body = await res.text().catch(() => '');
-    throw new Error(`Ollama error ${res.status}: ${body || res.statusText}`);
+    const provider = isDefaultOllama ? 'Ollama' : baseUrl;
+    throw new Error(`${provider} error ${res.status}: ${body || res.statusText}`);
   }
 
   const reader = res.body?.getReader();
-  if (!reader) throw new Error('No response body from Ollama');
+  if (!reader) throw new Error('No response body from AI provider');
 
   const decoder = new TextDecoder();
   let buf = '';
