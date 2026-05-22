@@ -68,6 +68,7 @@ export function useVimInput(
 
   useInput(
     (input, key) => {
+      let toSubmit: string | null = null;
       setState((s) => {
         // ── INSERT mode ──────────────────────────────────────────────
         if (s.mode === 'INSERT') {
@@ -87,7 +88,7 @@ export function useVimInput(
               return { ...s, value: val, cursor: val.length, suggestionIndex: -1 };
             }
             const trimmed = s.value.trim();
-            if (trimmed) onSubmit(trimmed);
+            if (trimmed) toSubmit = trimmed;
             return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank, historyIndex: -1, draft: '', suggestionIndex: -1 };
           }
           if (key.upArrow) {
@@ -153,7 +154,7 @@ export function useVimInput(
         // ── NORMAL mode ──────────────────────────────────────────────
         if (key.return) {
           const trimmed = s.value.trim();
-          if (trimmed) onSubmit(trimmed);
+          if (trimmed) toSubmit = trimmed;
           return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank, historyIndex: -1, draft: '' };
         }
 
@@ -249,6 +250,7 @@ export function useVimInput(
           default: return s;
         }
       });
+      if (toSubmit !== null) onSubmit(toSubmit);
     },
     { isActive: isActive && (isRawModeSupported ?? false) },
   );
