@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useInput, useStdin } from 'ink';
 
 export type VimMode = 'INSERT' | 'NORMAL';
@@ -12,6 +12,7 @@ interface State {
   historyIndex: number;  // -1 = not browsing history
   draft: string;         // saved input before history navigation started
   suggestionIndex: number; // -1 = none selected
+  pendingSubmit: string | null; // set by Enter key, consumed by useEffect
 }
 
 function wordForward(str: string, pos: number): number {
@@ -64,11 +65,27 @@ export function useVimInput(
     historyIndex: -1,
     draft: '',
     suggestionIndex: -1,
+    pendingSubmit: null,
   });
+
+  // Always keep the ref pointing to the latest onSubmit so the effect
+  // doesn't need onSubmit as a dependency (avoids stale-closure issues).
+  const onSubmitRef = useRef(onSubmit);
+  onSubmitRef.current = onSubmit;
+
+  // Consume pendingSubmit after React has committed the state update.
+  // This is the correct pattern: the updater runs during the render phase
+  // (async from the event handler's perspective in React 18), so we cannot
+  // rely on the updater having run by the time the event handler returns.
+  useEffect(() => {
+    if (state.pendingSubmit !== null) {
+      onSubmitRef.current(state.pendingSubmit);
+      setState((s) => ({ ...s, pendingSubmit: null }));
+    }
+  }, [state.pendingSubmit]);
 
   useInput(
     (input, key) => {
-      let toSubmit: string | null = null;
       setState((s) => {
         // ── INSERT mode ──────────────────────────────────────────────
         if (s.mode === 'INSERT') {
@@ -91,8 +108,7 @@ export function useVimInput(
               return { ...s, value: val, cursor: val.length, suggestionIndex: -1 };
             }
             const trimmed = s.value.trim();
-            if (trimmed) toSubmit = trimmed;
-            return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank, historyIndex: -1, draft: '', suggestionIndex: -1 };
+            return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank, historyIndex: -1, draft: '', suggestionIndex: -1, pendingSubmit: trimmed || null };
           }
           if (key.upArrow) {
             const sugs = getSuggestions?.(s.value, s.cursor) ?? [];
@@ -157,8 +173,7 @@ export function useVimInput(
         // ── NORMAL mode ──────────────────────────────────────────────
         if (key.return) {
           const trimmed = s.value.trim();
-          if (trimmed) toSubmit = trimmed;
-          return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank, historyIndex: -1, draft: '' };
+          return { value: '', cursor: 0, mode: 'INSERT', pending: '', yank: s.yank, historyIndex: -1, draft: '', suggestionIndex: -1, pendingSubmit: trimmed || null };
         }
 
         // Pending operator: d
@@ -253,7 +268,6 @@ export function useVimInput(
           default: return s;
         }
       });
-      if (toSubmit !== null) onSubmit(toSubmit);
     },
     { isActive: isActive && (isRawModeSupported ?? false) },
   );
