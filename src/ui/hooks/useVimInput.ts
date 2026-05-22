@@ -1,4 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
+import { spawnSync } from 'node:child_process';
+import { writeFileSync, readFileSync, unlinkSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { useInput, useStdin } from 'ink';
 
 export type VimMode = 'INSERT' | 'NORMAL';
@@ -13,6 +17,7 @@ interface State {
   draft: string;         // saved input before history navigation started
   suggestionIndex: number; // -1 = none selected
   pendingSubmit: string | null; // set by Enter key, consumed by useEffect
+  pendingEditor: string | null; // value to edit; set to trigger editor, consumed by useEffect
 }
 
 function wordForward(str: string, pos: number): number {
@@ -66,6 +71,7 @@ export function useVimInput(
     draft: '',
     suggestionIndex: -1,
     pendingSubmit: null,
+    pendingEditor: null,
   });
 
   // Always keep the ref pointing to the latest onSubmit so the effect
@@ -83,6 +89,34 @@ export function useVimInput(
       setState((s) => ({ ...s, pendingSubmit: null }));
     }
   }, [state.pendingSubmit]);
+
+  // Open $EDITOR when pendingEditor is set. spawnSync blocks the event loop,
+  // giving the editor full terminal control. Raw mode is disabled before spawn
+  // and re-enabled after so the editor gets a normal TTY.
+  useEffect(() => {
+    if (state.pendingEditor === null) return;
+    const initialContent = state.pendingEditor;
+    const editor = process.env.EDITOR ?? process.env.VISUAL ?? 'vi';
+    const tmpPath = join(tmpdir(), `querky-edit-${Date.now()}.sql`);
+    const ttyStdin = process.stdin as { setRawMode?: (mode: boolean) => void };
+    try {
+      writeFileSync(tmpPath, initialContent);
+      ttyStdin.setRawMode?.(false);
+      spawnSync(editor, [tmpPath], { stdio: 'inherit' });
+      // Clear visible screen so Ink redraws from a known position.
+      // Without this, Ink's "erase N lines" cursor math is wrong after the
+      // editor leaves the cursor at an unpredictable row.
+      process.stdout.write('\x1B[2J\x1B[H');
+      ttyStdin.setRawMode?.(true);
+      const content = readFileSync(tmpPath, 'utf8').trimEnd();
+      setState((s) => ({ ...s, pendingEditor: null, value: content, cursor: content.length, mode: 'INSERT' }));
+    } catch {
+      ttyStdin.setRawMode?.(true);
+      setState((s) => ({ ...s, pendingEditor: null }));
+    } finally {
+      try { unlinkSync(tmpPath); } catch { /* best-effort */ }
+    }
+  }, [state.pendingEditor]);
 
   useInput(
     (input, key) => {
@@ -157,6 +191,9 @@ export function useVimInput(
             if (completed != null) return { ...s, value: completed, cursor: completed.length };
             return s;
           }
+          if (key.ctrl && input === 'e') {
+            return { ...s, pendingEditor: s.value };
+          }
           if (!key.ctrl && !key.meta && input) {
             const chars = input === '!' && s.value === '' ? '! ' : input;
             return {
@@ -227,7 +264,7 @@ export function useVimInput(
           case 'l': return { ...s, cursor: Math.min(maxCursor, s.cursor + 1) };
           case 'w': return { ...s, cursor: Math.min(maxCursor, wordForward(s.value, s.cursor)) };
           case 'b': return { ...s, cursor: wordBackward(s.value, s.cursor) };
-          case 'e': return { ...s, cursor: wordEnd(s.value, s.cursor) };
+          case 'e': return { ...s, pendingEditor: s.value };
           case '0': return { ...s, cursor: 0 };
           case '$': return { ...s, cursor: maxCursor };
           case 'x': {

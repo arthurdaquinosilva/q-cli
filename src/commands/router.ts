@@ -51,11 +51,33 @@ const DB_QUERIES: Record<Driver, { databases: string; tables: string; users: str
 
 const PSQL_ALIASES: Record<string, string> = {
   l: 'databases',
-  d: 'tables',
+  d: 'd',
   dt: 'tables',
   du: 'users',
   c: 'changeDatabase',
 };
+
+function describeBasicSql(driver: Driver, table: string): string {
+  const t = table.replace(/'/g, "''");
+  if (driver === 'postgresql') {
+    return `SELECT column_name, data_type, is_nullable AS nullable, COALESCE(column_default, '') AS "default" FROM information_schema.columns WHERE table_schema = 'public' AND table_name = '${t}' ORDER BY ordinal_position`;
+  }
+  if (driver === 'mysql') {
+    return `SELECT column_name, column_type AS data_type, is_nullable AS nullable, COALESCE(column_default, '') AS \`default\` FROM information_schema.columns WHERE table_schema = DATABASE() AND table_name = '${t}' ORDER BY ordinal_position`;
+  }
+  return `SELECT name AS column_name, type AS data_type, CASE WHEN "notnull" = 0 THEN 'YES' ELSE 'NO' END AS nullable, COALESCE(dflt_value, '') AS "default" FROM pragma_table_info('${t}')`;
+}
+
+function describeFullSql(driver: Driver, table: string): string {
+  const t = table.replace(/'/g, "''");
+  if (driver === 'postgresql') {
+    return `SELECT c.column_name, c.data_type, c.is_nullable AS nullable, COALESCE(c.column_default, '') AS "default", COALESCE(string_agg(DISTINCT CASE tc.constraint_type WHEN 'PRIMARY KEY' THEN 'PK' WHEN 'FOREIGN KEY' THEN 'FK' WHEN 'UNIQUE' THEN 'UQ' END, ', ') FILTER (WHERE tc.constraint_type IS NOT NULL), '') AS key FROM information_schema.columns c LEFT JOIN information_schema.key_column_usage kcu ON kcu.table_schema = c.table_schema AND kcu.table_name = c.table_name AND kcu.column_name = c.column_name LEFT JOIN information_schema.table_constraints tc ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema WHERE c.table_schema = 'public' AND c.table_name = '${t}' GROUP BY c.column_name, c.data_type, c.is_nullable, c.column_default, c.ordinal_position ORDER BY c.ordinal_position`;
+  }
+  if (driver === 'mysql') {
+    return `SELECT c.column_name, c.column_type AS data_type, c.is_nullable AS nullable, COALESCE(c.column_default, '') AS \`default\`, COALESCE(GROUP_CONCAT(DISTINCT CASE tc.constraint_type WHEN 'PRIMARY KEY' THEN 'PK' WHEN 'FOREIGN KEY' THEN 'FK' WHEN 'UNIQUE' THEN 'UQ' END SEPARATOR ', '), '') AS \`key\` FROM information_schema.columns c LEFT JOIN information_schema.key_column_usage kcu ON kcu.table_schema = c.table_schema AND kcu.table_name = c.table_name AND kcu.column_name = c.column_name LEFT JOIN information_schema.table_constraints tc ON tc.constraint_name = kcu.constraint_name AND tc.table_schema = kcu.table_schema WHERE c.table_schema = DATABASE() AND c.table_name = '${t}' GROUP BY c.column_name, c.column_type, c.is_nullable, c.column_default, c.ordinal_position ORDER BY c.ordinal_position`;
+  }
+  return `SELECT name AS column_name, type AS data_type, CASE WHEN "notnull" = 0 THEN 'YES' ELSE 'NO' END AS nullable, COALESCE(dflt_value, '') AS "default", CASE WHEN pk > 0 THEN 'PK' ELSE '' END AS key FROM pragma_table_info('${t}')`;
+}
 
 const COMMANDS: Record<string, Command> = {
   'clear': {
@@ -71,6 +93,26 @@ const COMMANDS: Record<string, Command> = {
       const next = !ctx.vimEnabled;
       ctx.setVimEnabled(next);
       return { ok: true, message: `Vim mode ${next ? 'enabled' : 'disabled'}` };
+    },
+  },
+  'd': {
+    description: 'List tables, or describe a table: \\d [table]',
+    run: (ctx) => {
+      if (!ctx.args.trim()) {
+        ctx.onQuery(DB_QUERIES[ctx.driver].tables);
+      } else {
+        ctx.onQuery(describeBasicSql(ctx.driver, ctx.args.trim()));
+      }
+      return { ok: true, message: '' };
+    },
+  },
+  'describe': {
+    description: 'Describe a table with constraints: /describe <table>',
+    run: (ctx) => {
+      const table = ctx.args.trim();
+      if (!table) return { ok: false, message: 'Usage: /describe <table>' };
+      ctx.onQuery(describeFullSql(ctx.driver, table));
+      return { ok: true, message: '' };
     },
   },
   'databases': {

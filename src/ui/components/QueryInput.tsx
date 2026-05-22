@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { useVimInput, type VimMode } from '../hooks/useVimInput.js';
 import { BUILTIN_COMMAND_LIST, getCompletions } from '../../commands/router.js';
 import { getSqlCompletions, getCurrentToken, applyCompletion, fuzzyMatchPositions, type Schema } from '../completions.js';
+import { tokenizeSql, type TokenType } from '../sqlHighlight.js';
 import { theme } from '../theme.js';
 
 function FuzzyHighlight({ text, token, selected }: { text: string; token: string; selected: boolean }) {
@@ -30,24 +31,91 @@ function FuzzyHighlight({ text, token, selected }: { text: string; token: string
 const BG = '#1e1b4b';
 const ACCENT = '#818cf8';
 const PLACEHOLDER = '#6366f1';
+const KW_COLOR = '#a5b4fc';
+const STR_COLOR = '#fb923c';
+const NUM_COLOR = '#86efac';
+const CMT_COLOR = '#6b7280';
+
+function sqlTokenColor(type: TokenType): string | undefined {
+  if (type === 'keyword') return KW_COLOR;
+  if (type === 'string') return STR_COLOR;
+  if (type === 'number') return NUM_COLOR;
+  if (type === 'comment') return CMT_COLOR;
+  return undefined;
+}
+
+function SqlLine({ text }: { text: string }) {
+  const tokens = tokenizeSql(text);
+  return (
+    <>
+      {tokens.map((tok, i) => (
+        <Text key={i} color={sqlTokenColor(tok.type)}>{tok.text}</Text>
+      ))}
+    </>
+  );
+}
+
+function SqlHighlightedInput({ text, cursorAt, mode, pad }: { text: string; cursorAt: number; mode: VimMode; pad: string }) {
+  const tokens = tokenizeSql(text);
+  const parts: React.ReactElement[] = [];
+  let pos = 0;
+  let cursorDone = false;
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    const tokEnd = pos + tok.text.length;
+    const color = sqlTokenColor(tok.type);
+
+    if (!cursorDone && cursorAt >= pos && cursorAt < tokEnd) {
+      const rel = cursorAt - pos;
+      const before = tok.text.slice(0, rel);
+      const ch = tok.text[rel];
+      const after = tok.text.slice(rel + 1);
+      if (before) parts.push(<Text key={`${i}b`} backgroundColor={BG} color={color}>{before}</Text>);
+      if (mode === 'INSERT') {
+        parts.push(<Text key={`${i}c`} backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>);
+        if (ch) parts.push(<Text key={`${i}ca`} backgroundColor={BG} color={color}>{ch}</Text>);
+      } else {
+        parts.push(<Text key={`${i}c`} backgroundColor={ACCENT} color={BG} bold>{ch || ' '}</Text>);
+      }
+      if (after) parts.push(<Text key={`${i}a`} backgroundColor={BG} color={color}>{after}</Text>);
+      cursorDone = true;
+    } else {
+      parts.push(<Text key={i} backgroundColor={BG} color={color}>{tok.text}</Text>);
+    }
+
+    pos = tokEnd;
+  }
+
+  if (!cursorDone) {
+    if (mode === 'INSERT') {
+      parts.push(<Text key="c" backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>);
+    } else {
+      parts.push(<Text key="c" backgroundColor={ACCENT} color={BG} bold>{' '}</Text>);
+    }
+  }
+
+  parts.push(<Text key="pad" backgroundColor={BG}>{pad}</Text>);
+  return <>{parts}</>;
+}
 
 const HINTS = {
   INSERT: [
     ['Esc', 'NORMAL MODE'],
     ['Enter', 'RUN QUERY'],
+    ['Ctrl+E', 'EDITOR'],
     ['!cmd', 'SHELL'],
     ['Ctrl+C', 'EXIT'],
-    ['Ctrl+Z', 'BACKGROUND'],
   ],
   NORMAL: [
     ['i/a/A', 'INSERT'],
     ['h/l', 'MOVE'],
-    ['w/b/e', 'WORD'],
+    ['w/b', 'WORD'],
     ['0/$', 'LINE ENDS'],
     ['dd/cc/S', 'CLEAR'],
     ['x/s/dw/cw', 'DELETE'],
     ['D/C', 'TO END'],
-    ['yy/p', 'YANK/PASTE'],
+    ['e', 'EDITOR'],
   ],
   PLAIN: [
     ['Enter', 'RUN QUERY'],
@@ -131,6 +199,7 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
   const emptyLine = ' '.repeat(innerWidth);
 
   const isEmpty = value === '';
+  const isMultiLine = !isEmpty && !isShellMode && !isCommand && value.includes('\n');
   // In shell mode, hide the '! ' prefix from the display (2 chars)
   const dOff = isShellMode ? 2 : 0;
   const before = value.slice(dOff, cursorPos);
@@ -154,31 +223,59 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
 
   return (
     <Box flexDirection="column">
-      <Text backgroundColor={BG}>{emptyLine}</Text>
+      {isMultiLine ? (
+        <Box flexDirection="column">
+          <Box flexDirection="column" borderStyle="round" borderColor={ACCENT} paddingX={1}>
+            {value.split('\n').map((line, i, arr) => {
+              const numW = String(arr.length).length;
+              const isLast = i === arr.length - 1;
+              return (
+                <Box key={i}>
+                  <Text dimColor>{String(i + 1).padStart(numW)}{' │ '}</Text>
+                  <SqlLine text={line} />
+                  {isLast && (mode === 'INSERT'
+                    ? <Text color={ACCENT} bold>{'▌'}</Text>
+                    : <Text backgroundColor={ACCENT} color={BG} bold>{' '}</Text>
+                  )}
+                </Box>
+              );
+            })}
+          </Box>
+          <Box marginTop={1}>
+            <Text dimColor>Enter: run  ·  Ctrl+E / e: re-edit</Text>
+          </Box>
+        </Box>
+      ) : (
+        <>
+          <Text backgroundColor={BG}>{emptyLine}</Text>
 
-      {/* Input line */}
-      <Box>
-        <Text backgroundColor={BG} color={isShellMode ? theme.shellMode : ACCENT} bold>{isShellMode ? '  $ ' : '  > '}</Text>
-        {isEmpty ? (
-          <>
-            <Text backgroundColor={BG} color={PLACEHOLDER}>{placeholder}</Text>
-            <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
-            <Text backgroundColor={BG}>{pad}</Text>
-          </>
-        ) : (
-          <>
-            <Text backgroundColor={BG}>{before}</Text>
-            {mode === 'INSERT' ? (
-              <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
+          {/* Input line */}
+          <Box>
+            <Text backgroundColor={BG} color={isShellMode ? theme.shellMode : ACCENT} bold>{isShellMode ? '  $ ' : '  > '}</Text>
+            {isEmpty ? (
+              <>
+                <Text backgroundColor={BG} color={PLACEHOLDER}>{placeholder}</Text>
+                <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
+                <Text backgroundColor={BG}>{pad}</Text>
+              </>
+            ) : isShellMode || isCommand ? (
+              <>
+                <Text backgroundColor={BG}>{before}</Text>
+                {mode === 'INSERT' ? (
+                  <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
+                ) : (
+                  <Text backgroundColor={ACCENT} color={BG} bold>{atCursor}</Text>
+                )}
+                <Text backgroundColor={BG}>{after}{pad}</Text>
+              </>
             ) : (
-              <Text backgroundColor={ACCENT} color={BG} bold>{atCursor}</Text>
+              <SqlHighlightedInput text={value} cursorAt={cursorPos} mode={mode} pad={pad} />
             )}
-            <Text backgroundColor={BG}>{after}{pad}</Text>
-          </>
-        )}
-      </Box>
+          </Box>
 
-      <Text backgroundColor={BG}>{emptyLine}</Text>
+          <Text backgroundColor={BG}>{emptyLine}</Text>
+        </>
+      )}
 
       {/* Suggestions */}
       {suggestions.length > 0 && (

@@ -3,9 +3,16 @@ import { Box, Text } from 'ink';
 const COL_PAD = 1;
 const INDIGO = '#818cf8';
 const BORDER = 'white';
+const NULL_COLOR = '#6366f1';
+
+const NULL_MARKER = '∅';
+
+function isNull(val: unknown): boolean {
+  return val === null || val === undefined;
+}
 
 function cellValue(val: unknown): string {
-  if (val === null || val === undefined) return 'NULL';
+  if (isNull(val)) return NULL_MARKER;
   if (val instanceof Date) return val.toISOString();
   if (typeof val === 'object') return JSON.stringify(val);
   return String(val);
@@ -54,7 +61,9 @@ function ExpandedTable({ columns, rows }: { columns: string[]; rows: Record<stri
             <Box key={col}>
               <Text color={INDIGO} bold>{col.padEnd(keyWidth)}</Text>
               <Text color={BORDER}>{' │ '}</Text>
-              <Text>{cellValue(row[col])}</Text>
+              {isNull(row[col])
+                ? <Text color={NULL_COLOR} dimColor>{NULL_MARKER}</Text>
+                : <Text>{cellValue(row[col])}</Text>}
             </Box>
           ))}
         </Box>
@@ -72,15 +81,29 @@ export function Table({ columns, rows, expanded = false }: TableProps) {
   const midLine = hline(widths, '├', '┼', '┤');
   const botLine = hline(widths, '╰', '┴', '╯');
 
-  function renderRow(values: string[], textColor?: string, bold?: boolean) {
+  function renderHeaderRow(cols: string[]) {
     return (
       <Box>
         <Text color={BORDER}>│</Text>
-        {values.map((v, i) => (
+        {cols.map((v, i) => (
           <Box key={i}>
-            <Text color={textColor} bold={bold}>
-              {' '.repeat(COL_PAD) + pad(v, widths[i]) + ' '.repeat(COL_PAD)}
-            </Text>
+            <Text color={INDIGO} bold>{' '.repeat(COL_PAD) + pad(v, widths[i]) + ' '.repeat(COL_PAD)}</Text>
+            <Text color={BORDER}>│</Text>
+          </Box>
+        ))}
+      </Box>
+    );
+  }
+
+  function renderDataRow(row: Record<string, unknown>) {
+    return (
+      <Box>
+        <Text color={BORDER}>│</Text>
+        {columns.map((col, i) => (
+          <Box key={i}>
+            {isNull(row[col])
+              ? <Text color={NULL_COLOR} dimColor>{' '.repeat(COL_PAD) + pad(NULL_MARKER, widths[i]) + ' '.repeat(COL_PAD)}</Text>
+              : <Text>{' '.repeat(COL_PAD) + pad(cellValue(row[col]), widths[i]) + ' '.repeat(COL_PAD)}</Text>}
             <Text color={BORDER}>│</Text>
           </Box>
         ))}
@@ -91,11 +114,11 @@ export function Table({ columns, rows, expanded = false }: TableProps) {
   return (
     <Box flexDirection="column">
       <Text color={BORDER}>{topLine}</Text>
-      {renderRow(columns, INDIGO, true)}
+      {renderHeaderRow(columns)}
       <Text color={BORDER}>{midLine}</Text>
       {rows.map((row, i) => (
         <Box key={i} flexDirection="column">
-          {renderRow(columns.map((col) => cellValue(row[col])))}
+          {renderDataRow(row)}
           {i < rows.length - 1 && <Text color={BORDER}>{midLine}</Text>}
         </Box>
       ))}

@@ -113,6 +113,54 @@
 
 ---
 
+---
+
+## Phase F: UX depth — table polish, schema exploration, editor integration
+
+### F.1 — NULL display
+- [x] Render NULL values with a distinct dim style in table cells so they are
+  visually distinguishable from the empty string.
+- **Depends on:** B.1
+- **Done when:** a query that returns NULL in a column shows a clearly different
+  visual marker (not just the plain text "NULL")
+
+### F.2 — `\d <table>` schema inspection
+- [x] `\d <table>` (and `/d <table>`) prints a compact column listing: name,
+  type, nullable flag, and default value. Uses DB-specific information-schema
+  queries for all three drivers.
+- **Depends on:** C.1
+- **Done when:** `\d users` renders a table showing all columns with their types
+  and nullability for all three supported drivers
+
+### F.3 — `/describe <table>` deep table info
+- [x] `/describe <table>` extends `\d` with a `key` column (PK/FK/UQ flags)
+  via LEFT JOINs on constraint tables. SQLite shows PK flag only.
+- **Depends on:** F.2
+- **Done when:** `/describe users` shows columns + key constraints on
+  PostgreSQL/MySQL; PK-only on SQLite
+
+### F.4 — SQL syntax highlighting in input
+- [x] As the user types, SQL keywords, string literals, numbers, and comments
+  are coloured differently. Lightweight regex tokeniser in `src/ui/sqlHighlight.ts`.
+- **Depends on:** B.5
+- **Done when:** typing `SELECT * FROM users WHERE id = 1` shows keywords in
+  accent colour and strings/numbers in distinct colours
+
+### F.5 — Multi-line editing via `$EDITOR`
+- [x] Pressing `e` in NORMAL mode (or `Ctrl+E` in INSERT mode) suspends Ink,
+  writes the current input to a temp file, opens `$EDITOR`, and on exit reads
+  the file back into the input buffer.
+- **Depends on:** B.5
+- **Done when:** pressing `e` opens the editor, editing and saving returns the
+  content to the prompt, and pressing Enter runs the multi-line query correctly
+
+---
+
 ## Deviations from plan
 
-- None yet.
+- B.3 (500-row truncation) implemented as page-based pagination (PAGE_SIZE=50)
+  with /next /prev instead of a hard truncation warning.
+- Shell mode (`!cmd`) added beyond original scope: runs shell commands inline,
+  preserves ANSI colours, handles history, supports `history | grep` pipelines.
+- `/clear` command added: wipes scrollback and resets terminal state.
+- Scrollback layout capped per terminal height to prevent Ink re-render shifts.
