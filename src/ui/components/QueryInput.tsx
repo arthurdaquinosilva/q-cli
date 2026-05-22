@@ -34,6 +34,7 @@ const HINTS = {
   INSERT: [
     ['Esc', 'NORMAL MODE'],
     ['Enter', 'RUN QUERY'],
+    ['!cmd', 'SHELL'],
     ['Ctrl+C', 'EXIT'],
     ['Ctrl+Z', 'BACKGROUND'],
   ],
@@ -49,6 +50,7 @@ const HINTS = {
   ],
   PLAIN: [
     ['Enter', 'RUN QUERY'],
+    ['!cmd', 'SHELL'],
     ['Ctrl+C', 'EXIT'],
     ['Ctrl+Z', 'BACKGROUND'],
     ['/toggle-vim-mode', 'ENABLE VIM'],

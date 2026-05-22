@@ -6,6 +6,7 @@ import { Box, Text, Static, useApp, useInput, useStdin } from 'ink';
 import type { ConnectionState, DbResult } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand } from '../../commands/router.js';
+import { runShell } from '../../commands/shell.js';
 import { streamExplain } from '../../ai/client.js';
 import { loadHistory, saveHistory, addToHistory } from '../../config/history.js';
 import { getAllAliases, saveAlias, deleteAlias, makeScope } from '../../config/aliases.js';
@@ -28,38 +29,49 @@ interface Entry {
   page: number;
   aiResponse: string;
   aiError: string | null;
+  shellOutput: string | null;
 }
 
 function EntryView({ entry }: { entry: Entry }) {
   const showAi = entry.aiResponse !== '' || entry.aiError !== null;
-  const isCommand = entry.query.startsWith('/') || entry.query.startsWith('\\');
+  const isShell = entry.query.startsWith('!');
+  const isCommand = !isShell && (entry.query.startsWith('/') || entry.query.startsWith('\\'));
+  const label = isShell ? 'Shell:' : isCommand ? 'Command:' : 'Query:';
   return (
     <Box flexDirection="column" marginBottom={1} paddingX={1}>
       <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
-        <Text color={theme.accent} bold>{isCommand ? 'Command:' : 'Query:'} </Text>
+        <Text color={theme.accent} bold>{label} </Text>
         <Text dimColor>{entry.query}</Text>
       </Box>
       <Box marginTop={1} flexDirection="column">
-        {entry.commandMessage && (
-          entry.commandMessage.ok
-            ? <Text color={theme.accent}>✓ {entry.commandMessage.text}</Text>
-            : <ErrorBox message={entry.commandMessage.text} />
-        )}
-        {showAi ? (
-          <Box flexDirection="column">
-            <Text color={theme.accent} bold>Explanation:</Text>
-            <Box flexDirection="column" marginTop={1}>
-              {entry.aiError ? (
-                <ErrorBox message={entry.aiError} />
-              ) : (
-                <Text color={PLACEHOLDER}>{entry.aiResponse}</Text>
-              )}
-            </Box>
-          </Box>
-        ) : (
-          !entry.commandMessage && (
-            <QueryResult state={entry.queryState} elapsed={entry.elapsed} page={entry.page} pageSize={PAGE_SIZE} />
+        {isShell ? (
+          entry.shellOutput !== null && (
+            <Text dimColor>{entry.shellOutput || '(no output)'}</Text>
           )
+        ) : (
+          <>
+            {entry.commandMessage && (
+              entry.commandMessage.ok
+                ? <Text color={theme.accent}>✓ {entry.commandMessage.text}</Text>
+                : <ErrorBox message={entry.commandMessage.text} />
+            )}
+            {showAi ? (
+              <Box flexDirection="column">
+                <Text color={theme.accent} bold>Explanation:</Text>
+                <Box flexDirection="column" marginTop={1}>
+                  {entry.aiError ? (
+                    <ErrorBox message={entry.aiError} />
+                  ) : (
+                    <Text color={PLACEHOLDER}>{entry.aiResponse}</Text>
+                  )}
+                </Box>
+              </Box>
+            ) : (
+              !entry.commandMessage && (
+                <QueryResult state={entry.queryState} elapsed={entry.elapsed} page={entry.page} pageSize={PAGE_SIZE} />
+              )
+            )}
+          </>
         )}
       </Box>
     </Box>
@@ -91,6 +103,8 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [aiResponse, setAiResponse] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
+  const [shellOutput, setShellOutput] = useState<string | null>(null);
+  const [isShellRunning, setIsShellRunning] = useState(false);
   const [completedEntries, setCompletedEntries] = useState<Entry[]>([]);
   const entryIdRef = useRef(0);
 
@@ -216,8 +230,22 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         page,
         aiResponse,
         aiError,
+        shellOutput,
       },
     ]);
+  }
+
+  async function handleShell(cmd: string) {
+    setShellOutput(null);
+    setIsShellRunning(true);
+    setCommandMessage(null);
+    setAiResponse('');
+    setAiError(null);
+    setQueryState({ status: 'idle' });
+    const result = await runShell(cmd);
+    const combined = [result.stdout, result.stderr].filter(Boolean).join('\n');
+    setShellOutput(combined || '(no output)');
+    setIsShellRunning(false);
   }
 
   async function handleSubmit(sql: string) {
@@ -225,6 +253,14 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     if (sql === '/prev') { setPage((p) => Math.max(0, p - 1)); return; }
 
     snapshotActiveEntry();
+
+    if (sql.startsWith('!')) {
+      const cmd = sql.slice(1).trim();
+      setLastQuery(sql);
+      setShellOutput(null);
+      void handleShell(cmd);
+      return;
+    }
 
     if (sql.startsWith('/') || sql.startsWith('\\')) {
       const result = runCommand(sql, {
@@ -254,10 +290,12 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     void handleQuery(sql);
   }
 
-  const isLoading = queryState.status === 'running' || isStreaming;
+  const isLoading = queryState.status === 'running' || isStreaming || isShellRunning;
   const isConnected = connectionState.status === 'connected';
   const showAi = aiResponse !== '' || isStreaming || aiError !== null;
-  const isCommand = lastQuery.startsWith('/') || lastQuery.startsWith('\\');
+  const isShellEntry = lastQuery.startsWith('!');
+  const isCommand = !isShellEntry && (lastQuery.startsWith('/') || lastQuery.startsWith('\\'));
+  const activeLabel = isShellEntry ? 'Shell:' : isCommand ? 'Command:' : 'Query:';
 
   return (
     <Box flexDirection="column">
@@ -271,33 +309,41 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         {lastQuery !== '' && (
           <Box flexDirection="column" marginBottom={2}>
             <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
-              <Text color={theme.accent} bold>{isCommand ? 'Command:' : 'Query:'} </Text>
+              <Text color={theme.accent} bold>{activeLabel} </Text>
               <Text dimColor>{lastQuery}</Text>
             </Box>
             <Box marginTop={1} flexDirection="column">
-              {commandMessage && (
-                commandMessage.ok
-                  ? <Text color={theme.accent}>✓ {commandMessage.text}</Text>
-                  : <ErrorBox message={commandMessage.text} />
-              )}
-              {showAi ? (
-                <Box flexDirection="column">
-                  <Text color={theme.accent} bold>Explanation:</Text>
-                  <Box flexDirection="column" marginTop={1}>
-                    {aiError ? (
-                      <ErrorBox message={aiError} />
-                    ) : (
-                      <Text color={PLACEHOLDER}>
-                        {aiResponse}
-                        {isStreaming && <Text color={PLACEHOLDER}>{'▋'}</Text>}
-                      </Text>
-                    )}
-                  </Box>
-                </Box>
+              {isShellEntry ? (
+                isShellRunning
+                  ? <Text dimColor>running…</Text>
+                  : <Text dimColor>{shellOutput ?? ''}</Text>
               ) : (
-                !commandMessage && (
-                  <QueryResult state={queryState} elapsed={elapsed} page={page} pageSize={PAGE_SIZE} />
-                )
+                <>
+                  {commandMessage && (
+                    commandMessage.ok
+                      ? <Text color={theme.accent}>✓ {commandMessage.text}</Text>
+                      : <ErrorBox message={commandMessage.text} />
+                  )}
+                  {showAi ? (
+                    <Box flexDirection="column">
+                      <Text color={theme.accent} bold>Explanation:</Text>
+                      <Box flexDirection="column" marginTop={1}>
+                        {aiError ? (
+                          <ErrorBox message={aiError} />
+                        ) : (
+                          <Text color={PLACEHOLDER}>
+                            {aiResponse}
+                            {isStreaming && <Text color={PLACEHOLDER}>{'▋'}</Text>}
+                          </Text>
+                        )}
+                      </Box>
+                    </Box>
+                  ) : (
+                    !commandMessage && (
+                      <QueryResult state={queryState} elapsed={elapsed} page={page} pageSize={PAGE_SIZE} />
+                    )
+                  )}
+                </>
               )}
             </Box>
           </Box>
