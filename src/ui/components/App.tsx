@@ -273,10 +273,22 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         onQuery: (query) => { void handleQuery(query); },
         onChangeDatabase: (db) => { onChangeDatabase?.(db); },
         onExport: handleExport,
+        onClear: () => {
+          setCompletedEntries([]);
+          setLastQuery('');
+          setCommandMessage(null);
+          setQueryState({ status: 'idle' });
+          setShellOutput(null);
+          setAiResponse('');
+          setAiError(null);
+          setElapsed(null);
+          setPage(0);
+        },
         aliases,
         onSaveAlias: handleSaveAlias,
         onDeleteAlias: handleDeleteAlias,
       });
+      if (result.cleared) return;
       setLastQuery(sql);
       setAiResponse('');
       setAiError(null);

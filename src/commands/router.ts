@@ -5,6 +5,7 @@ import { fuzzyScore } from '../ui/completions.js';
 export interface CommandResult {
   ok: boolean;
   message: string;
+  cleared?: boolean;
 }
 
 export interface CommandContext {
@@ -18,6 +19,7 @@ export interface CommandContext {
   onQuery: (sql: string) => void;
   onChangeDatabase: (database: string) => void;
   onExport: (format: 'csv' | 'json') => void;
+  onClear: () => void;
   // alias context
   aliases: Record<string, string>;
   onSaveAlias: (name: string, query: string) => void;
@@ -56,6 +58,13 @@ const PSQL_ALIASES: Record<string, string> = {
 };
 
 const COMMANDS: Record<string, Command> = {
+  'clear': {
+    description: 'Clear the scrollback history',
+    run: (ctx) => {
+      ctx.onClear();
+      return { ok: true, message: '', cleared: true };
+    },
+  },
   'toggle-vim-mode': {
     description: 'Toggle vim keybindings on/off',
     run: (ctx) => {
