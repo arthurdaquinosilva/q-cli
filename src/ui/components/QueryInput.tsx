@@ -55,7 +55,7 @@ function SqlLine({ text }: { text: string }) {
   );
 }
 
-function SqlHighlightedInput({ text, cursorAt, mode, pad }: { text: string; cursorAt: number; mode: VimMode; pad: string }) {
+function SqlHighlightedInput({ text, cursorAt, mode }: { text: string; cursorAt: number; mode: VimMode }) {
   const tokens = tokenizeSql(text);
   const parts: React.ReactElement[] = [];
   let pos = 0;
@@ -95,7 +95,6 @@ function SqlHighlightedInput({ text, cursorAt, mode, pad }: { text: string; curs
     }
   }
 
-  parts.push(<Text key="pad" backgroundColor={BG}>{pad}</Text>);
   return <>{parts}</>;
 }
 
@@ -207,14 +206,6 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
   const after = value.slice(Math.max(cursorPos + 1, dOff));
 
   const placeholder = 'Type a SQL query…';
-  const contentLen = isEmpty
-    ? 4 + placeholder.length + 1 // +1 for the ▌ cursor rendered in placeholder state
-    : 4 + before.length + 1 + after.length;
-  // Pad enough spaces to fill ALL wrapped lines with the BG color, not just
-  // the first line. ceil(contentLen / innerWidth) gives total lines used;
-  // multiply back to get the total chars that need to be painted.
-  const linesUsed = Math.max(1, Math.ceil(contentLen / innerWidth));
-  const pad = ' '.repeat(linesUsed * innerWidth - contentLen);
 
 
   const SEP = '  |  ';
@@ -253,27 +244,27 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
         <>
           <Text backgroundColor={BG}>{emptyLine}</Text>
 
-          {/* Input line */}
-          <Box>
-            <Text backgroundColor={BG} color={isShellMode ? theme.shellMode : ACCENT} bold>{isShellMode ? '  $ ' : '  > '}</Text>
+          {/* Input line — Box width+backgroundColor fills the whole row including
+              wrapped lines, so we never need manual padding spaces. */}
+          <Box width={innerWidth} backgroundColor={BG}>
+            <Text color={isShellMode ? theme.shellMode : ACCENT} bold>{isShellMode ? '  $ ' : '  > '}</Text>
             {isEmpty ? (
               <>
-                <Text backgroundColor={BG} color={PLACEHOLDER}>{placeholder}</Text>
-                <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
-                <Text backgroundColor={BG}>{pad}</Text>
+                <Text color={PLACEHOLDER}>{placeholder}</Text>
+                <Text color={ACCENT} bold>{'▌'}</Text>
               </>
             ) : isShellMode || isCommand ? (
               <>
-                <Text backgroundColor={BG}>{before}</Text>
+                <Text>{before}</Text>
                 {mode === 'INSERT' ? (
-                  <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
+                  <Text color={ACCENT} bold>{'▌'}</Text>
                 ) : (
                   <Text backgroundColor={ACCENT} color={BG} bold>{atCursor}</Text>
                 )}
-                <Text backgroundColor={BG}>{after}{pad}</Text>
+                <Text>{after}</Text>
               </>
             ) : (
-              <SqlHighlightedInput text={value} cursorAt={cursorPos} mode={mode} pad={pad} />
+              <SqlHighlightedInput text={value} cursorAt={cursorPos} mode={mode} />
             )}
           </Box>
 
