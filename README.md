@@ -25,11 +25,18 @@ A quirky terminal SQL client with vim keybindings, schema-aware autocomplete, qu
 ## Requirements
 
 - Node.js 18+
-- pnpm
 
 ---
 
 ## Install
+
+```bash
+npm install -g @deaquinodev/querky
+```
+
+After that, `querky` is available globally.
+
+### Install from source
 
 ```bash
 git clone https://github.com/arthurdaquinosilva/querky.git
@@ -38,8 +45,6 @@ pnpm install
 pnpm build
 pnpm install -g .
 ```
-
-After that, `querky` is available globally.
 
 ---
 
@@ -116,10 +121,12 @@ Ollama is the default endpoint (`http://localhost:11434/v1`).
 | `/explain-previous` | Explain the last query you ran |
 | `/databases` | List available databases |
 | `/tables` | List tables in the current database |
+| `/describe <table>` | Show columns, types, and key constraints for a table |
 | `/export csv` | Export last result to a CSV file |
 | `/export json` | Export last result to a JSON file |
 | `/next` | Next page of results |
 | `/prev` | Previous page of results |
+| `/clear` | Clear the screen and scrollback |
 | `/toggle-vim-mode` | Toggle vim keybindings on/off |
 | `/save <name>` | Save the last query as an alias |
 | `/alias <name> <SQL>` | Define an alias inline |
@@ -181,6 +188,7 @@ Users coming from `psql` can use familiar meta-commands:
 |---|---|
 | `\l` | List databases |
 | `\d` or `\dt` | List tables |
+| `\d <table>` | Show columns for a table |
 | `\du` | List users |
 | `\c` | Show current database |
 | `\c <dbname>` | Switch to a different database |
@@ -202,10 +210,25 @@ Querky starts in INSERT mode. Press `Escape` to enter NORMAL mode.
 | `x` / `s` | Delete/substitute character |
 | `D` / `C` | Delete/change to end of line |
 | `yy` / `p` | Yank line / paste |
+| `e` | Open current input in `$EDITOR` |
 
-In INSERT mode, **↑↓** navigates query history.
+In INSERT mode, **↑↓** navigates query history. **Ctrl+E** opens `$EDITOR` from INSERT mode.
 
 Disable vim mode with `/toggle-vim-mode` or pass `--no-vim` for plain input.
+
+---
+
+## Shell Mode
+
+Prefix any command with `!` to run it in your shell without leaving querky:
+
+```
+! ls -la
+! pg_dump mydb > backup.sql
+! cat results.csv | wc -l
+```
+
+Output appears inline. ANSI colors and pipes are preserved.
 
 ---
 
