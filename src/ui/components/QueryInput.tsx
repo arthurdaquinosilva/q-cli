@@ -73,9 +73,7 @@ function SqlHighlightedInput({ text, cursorAt, mode, pad }: { text: string; curs
       const after = tok.text.slice(rel + 1);
       if (before) parts.push(<Text key={`${i}b`} backgroundColor={BG} color={color}>{before}</Text>);
       if (mode === 'INSERT') {
-        // ▌ replaces the char at cursor — same behaviour as the non-SQL path.
-        // Rendering both would make the content 1 char wider than contentLen,
-        // which throws off the pad calculation and breaks the BG on wrap.
+        // ▌ replaces the char at cursor — same width as the replaced char.
         parts.push(<Text key={`${i}c`} backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>);
       } else {
         parts.push(<Text key={`${i}c`} backgroundColor={ACCENT} color={BG} bold>{ch || ' '}</Text>);
@@ -202,22 +200,33 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
 
   const isEmpty = value === '';
   const isMultiLine = !isEmpty && !isShellMode && !isCommand && value.includes('\n');
-  // In shell mode, hide the '! ' prefix from the display (2 chars)
   const dOff = isShellMode ? 2 : 0;
-  const before = value.slice(dOff, cursorPos);
-  const atCursor = cursorPos < dOff ? ' ' : (value[cursorPos] ?? ' ');
-  const after = value.slice(Math.max(cursorPos + 1, dOff));
 
   const placeholder = 'Type a SQL query…';
-  // contentLen: total visible columns rendered (prompt + content + cursor indicator).
-  // In INSERT mode ▌ replaces the char at cursorPos, so it counts as 1, not 2.
-  const contentLen = isEmpty
-    ? 4 + placeholder.length + 1
-    : 4 + before.length + 1 + after.length;
-  // Pad enough BG-coloured spaces to fill every wrapped terminal line, not just
-  // the first one: ceil(contentLen / innerWidth) * innerWidth − contentLen.
-  const linesUsed = Math.max(1, Math.ceil(contentLen / innerWidth));
-  const pad = ' '.repeat(linesUsed * innerWidth - contentLen);
+
+  // Scrolled single-line input: show a lineWidth-wide window around the cursor
+  // so the input line never wraps. This avoids both the BG-gap and cursor-at-
+  // wrap-boundary bugs that plague multi-line Ink text nodes.
+  const lineWidth = innerWidth - 4; // 4 = prompt '  > ' or '  $ '
+  const displayValue = value.slice(dOff);
+  const displayCursor = Math.max(0, cursorPos - dOff);
+  // Scroll so the cursor stays at the rightmost visible position when overflowing
+  const scrollStart = displayCursor > lineWidth - 1 ? displayCursor - lineWidth + 1 : 0;
+
+  // Non-SQL / shell / command path slices
+  const visibleBefore = displayValue.slice(scrollStart, displayCursor);
+  const cursorChar = cursorPos < dOff ? ' ' : (displayValue[displayCursor] ?? ' ');
+  const visibleAfter = displayValue.slice(displayCursor + 1, scrollStart + lineWidth);
+  const textPad = ' '.repeat(Math.max(0, lineWidth - visibleBefore.length - 1 - visibleAfter.length));
+
+  // SQL-highlighted path slices (dOff is always 0 for SQL mode)
+  const visibleSql = value.slice(scrollStart, scrollStart + lineWidth);
+  const relativeSqlCursor = cursorPos - scrollStart;
+  const sqlCursorAtEnd = relativeSqlCursor >= visibleSql.length;
+  const sqlPad = ' '.repeat(Math.max(0, lineWidth - visibleSql.length - (sqlCursorAtEnd ? 1 : 0)));
+
+  // Empty-placeholder pad fills remainder of BG line
+  const emptyPad = ' '.repeat(Math.max(0, lineWidth - placeholder.length - 1));
 
   const SEP = '  |  ';
   const allHints = vimEnabled ? HINTS[mode] : HINTS.PLAIN;
@@ -262,20 +271,20 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
               <>
                 <Text backgroundColor={BG} color={PLACEHOLDER}>{placeholder}</Text>
                 <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
-                <Text backgroundColor={BG}>{pad}</Text>
+                <Text backgroundColor={BG}>{emptyPad}</Text>
               </>
             ) : isShellMode || isCommand ? (
               <>
-                <Text backgroundColor={BG}>{before}</Text>
+                <Text backgroundColor={BG}>{visibleBefore}</Text>
                 {mode === 'INSERT' ? (
                   <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
                 ) : (
-                  <Text backgroundColor={ACCENT} color={BG} bold>{atCursor}</Text>
+                  <Text backgroundColor={ACCENT} color={BG} bold>{cursorChar}</Text>
                 )}
-                <Text backgroundColor={BG}>{after}{pad}</Text>
+                <Text backgroundColor={BG}>{visibleAfter}{textPad}</Text>
               </>
             ) : (
-              <SqlHighlightedInput text={value} cursorAt={cursorPos} mode={mode} pad={pad} />
+              <SqlHighlightedInput text={visibleSql} cursorAt={relativeSqlCursor} mode={mode} pad={sqlPad} />
             )}
           </Box>
 
