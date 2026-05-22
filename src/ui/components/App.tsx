@@ -95,6 +95,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [lastResult, setLastResult] = useState<DbResult | null>(null);
   const [page, setPage] = useState(0);
   const [vimMode, setVimMode] = useState<VimMode>('INSERT');
+  const [inputIsShell, setInputIsShell] = useState(false);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [vimEnabled, setVimEnabled] = useState(true);
   const [commandMessage, setCommandMessage] = useState<{ text: string; ok: boolean } | null>(null);
@@ -366,6 +367,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
             onSubmit={handleSubmit}
             isLoading={isLoading}
             onModeChange={setVimMode}
+            onShellModeChange={setInputIsShell}
             vimEnabled={vimEnabled}
             history={history}
             aliases={aliases}
@@ -375,10 +377,10 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
           <Text dimColor>Not connected. Press Ctrl+C to exit.</Text>
         )}
 
-        {vimEnabled && (
+        {(vimEnabled || inputIsShell) && (
           <Box marginTop={1}>
-            <Text bold color={vimMode === 'NORMAL' ? theme.normalMode : theme.insertMode}>
-              {isRawModeSupported ? `[${vimMode}]` : ''}
+            <Text bold color={inputIsShell ? theme.shellMode : (vimMode === 'NORMAL' ? theme.normalMode : theme.insertMode)}>
+              {isRawModeSupported ? (inputIsShell ? '[SHELL]' : `[${vimMode}]`) : ''}
             </Text>
           </Box>
         )}

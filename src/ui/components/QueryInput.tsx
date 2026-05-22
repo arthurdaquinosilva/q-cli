@@ -3,6 +3,7 @@ import { Box, Text } from 'ink';
 import { useVimInput, type VimMode } from '../hooks/useVimInput.js';
 import { BUILTIN_COMMAND_LIST, getCompletions } from '../../commands/router.js';
 import { getSqlCompletions, getCurrentToken, applyCompletion, fuzzyMatchPositions, type Schema } from '../completions.js';
+import { theme } from '../theme.js';
 
 function FuzzyHighlight({ text, token, selected }: { text: string; token: string; selected: boolean }) {
   if (!token) return <Text dimColor={!selected}>{text}</Text>;
@@ -63,13 +64,14 @@ interface QueryInputProps {
   onSubmit: (query: string) => void;
   isLoading: boolean;
   onModeChange?: (mode: VimMode) => void;
+  onShellModeChange?: (isShell: boolean) => void;
   vimEnabled?: boolean;
   history?: string[];
   aliases?: Record<string, string>;
   schema?: Schema;
 }
 
-export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = true, history = [], aliases = {}, schema }: QueryInputProps) {
+export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChange, vimEnabled = true, history = [], aliases = {}, schema }: QueryInputProps) {
   function handleTab(current: string): string | null {
     if (!current.startsWith('/')) return null;
     const partial = current.slice(1);
@@ -98,11 +100,12 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
     handleSuggestionAccept,
   );
 
-  const isCommand = value.startsWith('/');
+  const isShellMode = value.startsWith('!');
+  const isCommand = !isShellMode && value.startsWith('/');
   const partial = isCommand ? value.slice(1) : '';
   const suggestions = isCommand
     ? getCompletions(partial, aliases)
-    : (schema ? getSqlCompletions(value, cursorPos, schema) : []);
+    : (!isShellMode && schema ? getSqlCompletions(value, cursorPos, schema) : []);
   const sqlToken = isCommand ? '' : getCurrentToken(value, cursorPos);
 
   const descMap: Record<string, string> = {
@@ -118,6 +121,10 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
   useEffect(() => {
     onModeChange?.(mode);
   }, [mode, onModeChange]);
+
+  useEffect(() => {
+    onShellModeChange?.(isShellMode);
+  }, [isShellMode, onShellModeChange]);
 
   const termWidth = process.stdout.columns ?? 80;
   const innerWidth = termWidth - 2; // App paddingX={1} consumes 1 char each side
@@ -149,7 +156,7 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, vimEnabled = tru
 
       {/* Input line */}
       <Box>
-        <Text backgroundColor={BG} color={ACCENT} bold>{'  > '}</Text>
+        <Text backgroundColor={BG} color={isShellMode ? theme.shellMode : ACCENT} bold>{isShellMode ? '  $ ' : '  > '}</Text>
         {isEmpty ? (
           <>
             <Text backgroundColor={BG} color={PLACEHOLDER}>{placeholder}</Text>
