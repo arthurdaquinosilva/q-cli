@@ -55,7 +55,7 @@ function SqlLine({ text }: { text: string }) {
   );
 }
 
-function SqlHighlightedInput({ text, cursorAt, mode }: { text: string; cursorAt: number; mode: VimMode }) {
+function SqlHighlightedInput({ text, cursorAt, mode, pad }: { text: string; cursorAt: number; mode: VimMode; pad: string }) {
   const tokens = tokenizeSql(text);
   const parts: React.ReactElement[] = [];
   let pos = 0;
@@ -73,8 +73,10 @@ function SqlHighlightedInput({ text, cursorAt, mode }: { text: string; cursorAt:
       const after = tok.text.slice(rel + 1);
       if (before) parts.push(<Text key={`${i}b`} backgroundColor={BG} color={color}>{before}</Text>);
       if (mode === 'INSERT') {
+        // ▌ replaces the char at cursor — same behaviour as the non-SQL path.
+        // Rendering both would make the content 1 char wider than contentLen,
+        // which throws off the pad calculation and breaks the BG on wrap.
         parts.push(<Text key={`${i}c`} backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>);
-        if (ch) parts.push(<Text key={`${i}ca`} backgroundColor={BG} color={color}>{ch}</Text>);
       } else {
         parts.push(<Text key={`${i}c`} backgroundColor={ACCENT} color={BG} bold>{ch || ' '}</Text>);
       }
@@ -95,6 +97,7 @@ function SqlHighlightedInput({ text, cursorAt, mode }: { text: string; cursorAt:
     }
   }
 
+  parts.push(<Text key="pad" backgroundColor={BG}>{pad}</Text>);
   return <>{parts}</>;
 }
 
@@ -206,7 +209,15 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
   const after = value.slice(Math.max(cursorPos + 1, dOff));
 
   const placeholder = 'Type a SQL query…';
-
+  // contentLen: total visible columns rendered (prompt + content + cursor indicator).
+  // In INSERT mode ▌ replaces the char at cursorPos, so it counts as 1, not 2.
+  const contentLen = isEmpty
+    ? 4 + placeholder.length + 1
+    : 4 + before.length + 1 + after.length;
+  // Pad enough BG-coloured spaces to fill every wrapped terminal line, not just
+  // the first one: ceil(contentLen / innerWidth) * innerWidth − contentLen.
+  const linesUsed = Math.max(1, Math.ceil(contentLen / innerWidth));
+  const pad = ' '.repeat(linesUsed * innerWidth - contentLen);
 
   const SEP = '  |  ';
   const allHints = vimEnabled ? HINTS[mode] : HINTS.PLAIN;
@@ -244,27 +255,27 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
         <>
           <Text backgroundColor={BG}>{emptyLine}</Text>
 
-          {/* Input line — Box width+backgroundColor fills the whole row including
-              wrapped lines, so we never need manual padding spaces. */}
-          <Box width={innerWidth} backgroundColor={BG}>
-            <Text color={isShellMode ? theme.shellMode : ACCENT} bold>{isShellMode ? '  $ ' : '  > '}</Text>
+          {/* Input line */}
+          <Box>
+            <Text backgroundColor={BG} color={isShellMode ? theme.shellMode : ACCENT} bold>{isShellMode ? '  $ ' : '  > '}</Text>
             {isEmpty ? (
               <>
-                <Text color={PLACEHOLDER}>{placeholder}</Text>
-                <Text color={ACCENT} bold>{'▌'}</Text>
+                <Text backgroundColor={BG} color={PLACEHOLDER}>{placeholder}</Text>
+                <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
+                <Text backgroundColor={BG}>{pad}</Text>
               </>
             ) : isShellMode || isCommand ? (
               <>
-                <Text>{before}</Text>
+                <Text backgroundColor={BG}>{before}</Text>
                 {mode === 'INSERT' ? (
-                  <Text color={ACCENT} bold>{'▌'}</Text>
+                  <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
                 ) : (
                   <Text backgroundColor={ACCENT} color={BG} bold>{atCursor}</Text>
                 )}
-                <Text>{after}</Text>
+                <Text backgroundColor={BG}>{after}{pad}</Text>
               </>
             ) : (
-              <SqlHighlightedInput text={value} cursorAt={cursorPos} mode={mode} />
+              <SqlHighlightedInput text={value} cursorAt={cursorPos} mode={mode} pad={pad} />
             )}
           </Box>
 
