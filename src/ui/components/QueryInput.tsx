@@ -131,9 +131,11 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
   const emptyLine = ' '.repeat(innerWidth);
 
   const isEmpty = value === '';
-  const before = value.slice(0, cursorPos);
-  const atCursor = value[cursorPos] ?? ' ';
-  const after = value.slice(cursorPos + 1);
+  // In shell mode, hide the '! ' prefix from the display (2 chars)
+  const dOff = isShellMode ? 2 : 0;
+  const before = value.slice(dOff, cursorPos);
+  const atCursor = cursorPos < dOff ? ' ' : (value[cursorPos] ?? ' ');
+  const after = value.slice(Math.max(cursorPos + 1, dOff));
 
   const placeholder = 'Type a SQL query…';
   const contentLen = isEmpty

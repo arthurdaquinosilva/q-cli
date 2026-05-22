@@ -20,8 +20,7 @@ function trimLines(s: string): string {
 export function runShell(command: string): Promise<ShellResult> {
   const shell = process.env.SHELL ?? '/bin/sh';
   return new Promise((resolve) => {
-    // -i makes the shell interactive so built-ins like `history` work
-    exec(command, { shell: `${shell} -i`, timeout: 30_000 }, (err, stdout, stderr) => {
+    exec(command, { shell, timeout: 30_000 }, (err, stdout, stderr) => {
       resolve({
         stdout: trimLines(stripAnsi(stdout).trimEnd()),
         stderr: trimLines(stripAnsi(stderr).trimEnd()),

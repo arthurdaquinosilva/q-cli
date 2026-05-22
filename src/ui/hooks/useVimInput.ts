@@ -73,6 +73,9 @@ export function useVimInput(
         // ── INSERT mode ──────────────────────────────────────────────
         if (s.mode === 'INSERT') {
           if (key.escape) {
+            if (s.value.startsWith('!')) {
+              return { ...s, value: '', cursor: 0, pending: '' };
+            }
             if (!vimEnabled) return s;
             return { ...s, mode: 'NORMAL', cursor: Math.max(0, s.cursor - 1), pending: '' };
           }
