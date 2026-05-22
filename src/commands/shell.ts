@@ -1,6 +1,6 @@
 import { exec } from 'node:child_process';
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
+import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
+import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 export interface ShellResult {
@@ -54,9 +54,32 @@ function readHistory(countArg: string): ShellResult {
 
 export function runShell(command: string): Promise<ShellResult> {
   const trimmed = command.trim();
-  const historyMatch = trimmed.match(/^history(?:\s+(\d+))?$/);
+
+  // Match "history [N]" at the start of any command (standalone or piped/chained).
+  // history | grep … → replace with "cat <tmpfile> | grep …" so pipelines work.
+  const historyMatch = trimmed.match(/^history(?:\s+(\d+))?(\s.*)?$/);
   if (historyMatch) {
-    return Promise.resolve(readHistory(historyMatch[1] ?? ''));
+    const countStr = historyMatch[1] ?? '';
+    const rest = (historyMatch[2] ?? '').trimStart();
+    const histResult = readHistory(countStr);
+    if (histResult.exitCode !== 0 || !rest) return Promise.resolve(histResult);
+
+    // Write history to a temp file so the shell can pipe/redirect it naturally.
+    const tmpPath = join(tmpdir(), `querky-hist-${Date.now()}.txt`);
+    writeFileSync(tmpPath, histResult.stdout);
+    const piped = `cat '${tmpPath}' ${rest}`;
+    const shell = process.env.SHELL ?? '/bin/sh';
+    const env = { ...process.env, CLICOLOR_FORCE: '1', COLORTERM: 'truecolor', FORCE_COLOR: '3' };
+    return new Promise((resolve) => {
+      exec(piped, { shell, timeout: 30_000, env }, (err, stdout, stderr) => {
+        try { unlinkSync(tmpPath); } catch { /* best-effort cleanup */ }
+        resolve({
+          stdout: trimLines(stripControl(stdout).trimEnd()),
+          stderr: trimLines(stripControl(stderr).trimEnd()),
+          exitCode: err?.code ?? 0,
+        });
+      });
+    });
   }
 
   const shell = process.env.SHELL ?? '/bin/sh';

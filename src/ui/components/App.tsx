@@ -20,6 +20,20 @@ import type { VimMode } from '../hooks/useVimInput.js';
 const PAGE_SIZE = 50;
 const PLACEHOLDER = '#a5b4fc';
 
+// Limit what the live result area shows so the dynamic region (result +
+// QueryInput ~9 lines + mode indicator ~2 lines + entry chrome ~5 lines)
+// stays within terminal height.  Full output lands in the static scrollback
+// history after the next submit.  Minimum 3 so there is always something.
+function activePageSize(): number {
+  return Math.max(3, (process.stdout.rows ?? 24) - 21);
+}
+
+function limitLines(s: string, n: number): string {
+  const lines = s.split('\n');
+  if (lines.length <= n) return s;
+  return lines.slice(0, n).join('\n') + `\n… +${lines.length - n} more lines (scroll up after next submit)`;
+}
+
 interface Entry {
   id: number;
   query: string;
@@ -329,7 +343,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
               {isShellEntry ? (
                 isShellRunning
                   ? <Text dimColor>running…</Text>
-                  : <Text>{shellOutput ?? ''}</Text>
+                  : <Text>{limitLines(shellOutput ?? '', activePageSize())}</Text>
               ) : (
                 <>
                   {commandMessage && (
@@ -353,7 +367,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
                     </Box>
                   ) : (
                     !commandMessage && (
-                      <QueryResult state={queryState} elapsed={elapsed} page={page} pageSize={PAGE_SIZE} />
+                      <QueryResult state={queryState} elapsed={elapsed} page={page} pageSize={activePageSize()} />
                     )
                   )}
                 </>
