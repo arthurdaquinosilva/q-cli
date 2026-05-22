@@ -138,10 +138,11 @@ export function useVimInput(
             return s;
           }
           if (!key.ctrl && !key.meta && input) {
+            const chars = input === '!' && s.value === '' ? '! ' : input;
             return {
               ...s,
-              value: s.value.slice(0, s.cursor) + input + s.value.slice(s.cursor),
-              cursor: s.cursor + input.length,
+              value: s.value.slice(0, s.cursor) + chars + s.value.slice(s.cursor),
+              cursor: s.cursor + chars.length,
               historyIndex: -1,
               suggestionIndex: -1,
             };
