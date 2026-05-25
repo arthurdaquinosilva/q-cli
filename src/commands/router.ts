@@ -43,6 +43,7 @@ export interface CommandContext {
   onChangeDatabase: (database: string) => void;
   onExport: (format: 'csv' | 'json') => void;
   onClear: () => void;
+  onErd: () => void;
   aliases: Record<string, string>;
   onSaveAlias: (name: string, query: string) => void;
   onDeleteAlias: (name: string) => boolean;
@@ -300,6 +301,16 @@ const COMMANDS: Record<string, Command> = {
       return removed
         ? { ok: true, message: `Removed /${name}` }
         : { ok: false, message: `No alias named /${name}` };
+    },
+  },
+  'erd': {
+    description: 'Visualize tables and relationships as a schema diagram',
+    category: 'Schema',
+    usage: '/erd',
+    detail: 'Fetches all tables, columns, and foreign key relationships from the connected database and renders a color-coded schema diagram. Each table gets a unique color; FK references use the color of the table they point to.',
+    run: (ctx) => {
+      ctx.onErd();
+      return { ok: true, message: '' };
     },
   },
   'help': {

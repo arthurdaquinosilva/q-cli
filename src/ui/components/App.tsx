@@ -6,6 +6,7 @@ import { Box, Text, Static, useApp, useInput, useStdin } from 'ink';
 import type { ConnectionState, DbResult } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand, type HelpData } from '../../commands/router.js';
+import { fetchErd, type ErdData } from '../../db/erd.js';
 import { runShell } from '../../commands/shell.js';
 import { streamExplain } from '../../ai/client.js';
 import { loadHistory, saveHistory, addToHistory } from '../../config/history.js';
@@ -15,6 +16,7 @@ import { QueryInput } from './QueryInput.js';
 import { QueryResult, ErrorBox } from './QueryResult.js';
 import { Banner } from './Banner.js';
 import { HelpView } from './HelpView.js';
+import { ErdView } from './ErdView.js';
 import { theme } from '../theme.js';
 import type { VimMode } from '../hooks/useVimInput.js';
 
@@ -47,10 +49,12 @@ interface Entry {
   aiResponse: string;
   aiError: string | null;
   shellOutput: string | null;
+  erdData: ErdData | null;
 }
 
 function EntryView({ entry }: { entry: Entry }) {
   const showAi = entry.aiResponse !== '' || entry.aiError !== null;
+  const showErd = entry.erdData !== null;
   const isShell = entry.query.startsWith('!');
   const isCommand = !isShell && (entry.query.startsWith('/') || entry.query.startsWith('\\'));
   const label = isShell ? 'Shell:' : isCommand ? 'Command:' : 'Query:';
@@ -74,7 +78,9 @@ function EntryView({ entry }: { entry: Entry }) {
                   ? <Text color={theme.accent}>✓ {entry.commandMessage.text}</Text>
                   : <ErrorBox message={entry.commandMessage.text} />
             )}
-            {showAi ? (
+            {showErd ? (
+              <ErdView data={entry.erdData!} />
+            ) : showAi ? (
               <Box flexDirection="column">
                 <Text color={theme.accent} bold>Explanation:</Text>
                 <Box flexDirection="column" marginTop={1}>
@@ -125,6 +131,8 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [aiError, setAiError] = useState<string | null>(null);
   const [shellOutput, setShellOutput] = useState<string | null>(null);
   const [isShellRunning, setIsShellRunning] = useState(false);
+  const [erdData, setErdData] = useState<ErdData | null>(null);
+  const [isErdLoading, setIsErdLoading] = useState(false);
   const [completedEntries, setCompletedEntries] = useState<Entry[]>([]);
   const entryIdRef = useRef(0);
 
@@ -196,8 +204,30 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     }
   }
 
+  async function handleErd() {
+    if (connectionState.status !== 'connected') {
+      setCommandMessage({ ok: false, text: 'Not connected to a database.' });
+      return;
+    }
+    setErdData(null);
+    setIsErdLoading(true);
+    setCommandMessage(null);
+    setQueryState({ status: 'idle' });
+    setAiResponse('');
+    setAiError(null);
+    try {
+      const data = await fetchErd(connectionState.client, connectionState.driver);
+      setErdData(data);
+    } catch (err) {
+      setCommandMessage({ ok: false, text: err instanceof Error ? err.message : String(err) });
+    } finally {
+      setIsErdLoading(false);
+    }
+  }
+
   async function handleQuery(sql: string) {
     if (connectionState.status !== 'connected') return;
+    setErdData(null);
     setAiResponse('');
     setAiError(null);
     setCommandMessage(null);
@@ -259,11 +289,13 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         aiResponse,
         aiError,
         shellOutput,
+        erdData,
       },
     ]);
   }
 
   async function handleShell(cmd: string) {
+    setErdData(null);
     setShellOutput(null);
     setIsShellRunning(true);
     setCommandMessage(null);
@@ -301,6 +333,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         onQuery: (query) => { void handleQuery(query); },
         onChangeDatabase: (db) => { onChangeDatabase?.(db); },
         onExport: handleExport,
+        onErd: () => { void handleErd(); },
         onClear: () => {
           // Erase the visible screen and scrollback buffer before React re-renders
           // so the banner appears at the very top with no residual output above it.
@@ -322,6 +355,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
       });
       if (result.cleared) return;
       setLastQuery(sql);
+      setErdData(null);
       setAiResponse('');
       setAiError(null);
       setElapsed(null);
@@ -335,7 +369,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     void handleQuery(sql);
   }
 
-  const isLoading = queryState.status === 'running' || isStreaming || isShellRunning;
+  const isLoading = queryState.status === 'running' || isStreaming || isShellRunning || isErdLoading;
   const isConnected = connectionState.status === 'connected';
   const showAi = aiResponse !== '' || isStreaming || aiError !== null;
   const isShellEntry = lastQuery.startsWith('!');
@@ -371,7 +405,11 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
                         ? <Text color={theme.accent}>✓ {commandMessage.text}</Text>
                         : <ErrorBox message={commandMessage.text} />
                   )}
-                  {showAi ? (
+                  {isErdLoading ? (
+                    <Text dimColor>Fetching schema…</Text>
+                  ) : erdData ? (
+                    <ErdView data={erdData} />
+                  ) : showAi ? (
                     <Box flexDirection="column">
                       <Text color={theme.accent} bold>Explanation:</Text>
                       <Box flexDirection="column" marginTop={1}>
