@@ -168,6 +168,16 @@
 - **Done when:** `/help` renders a grouped list; `/help explain` shows detail
   view with usage, description, and example
 
+### G.3 — `/erd` schema diagram
+- [x] `/erd` fetches all tables, columns, and FK relationships from the live
+  database in a single driver-specific query and renders a color-coded schema
+  diagram. Each table gets a unique color; FK → references use the referenced
+  table's color. Tables are arranged in a responsive grid that packs left-to-right
+  based on terminal width and wraps to new rows automatically.
+- **Depends on:** C.1
+- **Done when:** `/erd` on a connected database renders colored table boxes with
+  correct PK/FK annotations and a grid that adapts to terminal width
+
 ### G.2 — Multiline ErrorBox background fix
 - [x] ErrorBox rendered multiline error messages (e.g. the AI config hint) as a
   single `<Text>` node, so the red background only filled the character width of
