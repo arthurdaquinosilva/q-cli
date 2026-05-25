@@ -156,6 +156,29 @@
 
 ---
 
+---
+
+## Phase G: Discoverability and polish
+
+### G.1 — `/help` command with category grouping
+- [x] `/help` lists all commands grouped by category (AI, Schema, Data, Aliases,
+  Session) with usage and a one-liner description. `/help <command>` shows
+  detailed usage, a longer description, and an example. Command names stay flat.
+- **Depends on:** C.1
+- **Done when:** `/help` renders a grouped list; `/help explain` shows detail
+  view with usage, description, and example
+
+### G.2 — Multiline ErrorBox background fix
+- [x] ErrorBox rendered multiline error messages (e.g. the AI config hint) as a
+  single `<Text>` node, so the red background only filled the character width of
+  each line — bleeding through to content behind it. Fixed by splitting on `\n`
+  and rendering each line as its own padded `<Text>`.
+- **Depends on:** none
+- **Done when:** `/explain-previous` with no AI configured shows a clean
+  full-width red background across all lines of the error message
+
+---
+
 ## Deviations from plan
 
 - B.3 (500-row truncation) implemented as page-based pagination (PAGE_SIZE=50)
