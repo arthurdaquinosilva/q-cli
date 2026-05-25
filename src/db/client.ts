@@ -34,10 +34,11 @@ class PgDbClient implements DbClient {
   constructor(private pg: Client) {}
 
   async query(sql: string): Promise<DbResult> {
-    const result = await this.pg.query(sql);
+    const raw = await this.pg.query(sql);
+    const result = Array.isArray(raw) ? raw[raw.length - 1] : raw;
     return {
-      fields: result.fields.map((f) => f.name),
-      rows: result.rows as Record<string, unknown>[],
+      fields: (result.fields ?? []).map((f: { name: string }) => f.name),
+      rows: (result.rows ?? []) as Record<string, unknown>[],
       rowCount: result.rowCount ?? 0,
     };
   }
