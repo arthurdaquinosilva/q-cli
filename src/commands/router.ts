@@ -2,10 +2,33 @@ import type { Driver } from '../db/client.js';
 import { expandAlias } from '../config/aliases.js';
 import { fuzzyScore } from '../ui/completions.js';
 
+export type CommandCategory = 'AI' | 'Schema' | 'Session' | 'Data' | 'Aliases';
+
+export interface HelpEntry {
+  name: string;
+  usage: string;
+  description: string;
+  psqlAlias?: string;
+  detail?: string;
+  example?: string;
+}
+
+export interface HelpGroup {
+  category: string;
+  entries: HelpEntry[];
+}
+
+export interface HelpData {
+  mode: 'list' | 'detail';
+  groups?: HelpGroup[];
+  entry?: HelpEntry;
+}
+
 export interface CommandResult {
   ok: boolean;
   message: string;
   cleared?: boolean;
+  helpData?: HelpData;
 }
 
 export interface CommandContext {
@@ -20,7 +43,6 @@ export interface CommandContext {
   onChangeDatabase: (database: string) => void;
   onExport: (format: 'csv' | 'json') => void;
   onClear: () => void;
-  // alias context
   aliases: Record<string, string>;
   onSaveAlias: (name: string, query: string) => void;
   onDeleteAlias: (name: string) => boolean;
@@ -28,6 +50,10 @@ export interface CommandContext {
 
 interface Command {
   description: string;
+  category: CommandCategory;
+  usage: string;
+  detail?: string;
+  example?: string;
   run: (ctx: CommandContext) => CommandResult;
 }
 
@@ -57,6 +83,12 @@ const PSQL_ALIASES: Record<string, string> = {
   c: 'changeDatabase',
 };
 
+const PSQL_REVERSE: Record<string, string> = Object.fromEntries(
+  Object.entries(PSQL_ALIASES)
+    .filter(([alias, name]) => alias !== name)
+    .map(([alias, name]) => [name, `\\${alias}`])
+);
+
 function describeBasicSql(driver: Driver, table: string): string {
   const t = table.replace(/'/g, "''");
   if (driver === 'postgresql') {
@@ -81,7 +113,10 @@ function describeFullSql(driver: Driver, table: string): string {
 
 const COMMANDS: Record<string, Command> = {
   'clear': {
-    description: 'Clear the scrollback history',
+    description: 'Clear the terminal scrollback',
+    category: 'Session',
+    usage: '/clear',
+    detail: 'Erases the visible screen and scrollback buffer. The next query starts fresh from the top.',
     run: (ctx) => {
       ctx.onClear();
       return { ok: true, message: '', cleared: true };
@@ -89,6 +124,9 @@ const COMMANDS: Record<string, Command> = {
   },
   'toggle-vim-mode': {
     description: 'Toggle vim keybindings on/off',
+    category: 'Session',
+    usage: '/toggle-vim-mode',
+    detail: 'Switches the query input between standard editing and vim keybindings. In NORMAL mode use motions like w, b, 0, $, x, dd. Enter INSERT mode with i, a, A, I, o, O.',
     run: (ctx) => {
       const next = !ctx.vimEnabled;
       ctx.setVimEnabled(next);
@@ -96,7 +134,11 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   'd': {
-    description: 'List tables, or describe a table: \\d [table]',
+    description: 'List tables, or describe a table',
+    category: 'Schema',
+    usage: '/d [table]',
+    detail: 'Without an argument, lists all tables in the current database. With a table name, shows columns, types, nullability, and defaults.',
+    example: '/d users',
     run: (ctx) => {
       if (!ctx.args.trim()) {
         ctx.onQuery(DB_QUERIES[ctx.driver].tables);
@@ -107,7 +149,11 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   'describe': {
-    description: 'Describe a table with constraints: /describe <table>',
+    description: 'Describe a table with PK/FK/UQ constraints',
+    category: 'Schema',
+    usage: '/describe <table>',
+    detail: 'Like /d but includes constraint information — PK (primary key), FK (foreign key), UQ (unique) — in an extra key column. SQLite shows PK only.',
+    example: '/describe orders',
     run: (ctx) => {
       const table = ctx.args.trim();
       if (!table) return { ok: false, message: 'Usage: /describe <table>' };
@@ -117,6 +163,9 @@ const COMMANDS: Record<string, Command> = {
   },
   'databases': {
     description: 'List available databases',
+    category: 'Schema',
+    usage: '/databases',
+    detail: 'Runs a driver-appropriate query to list all databases on the server.',
     run: (ctx) => {
       ctx.onQuery(DB_QUERIES[ctx.driver].databases);
       return { ok: true, message: '' };
@@ -124,6 +173,9 @@ const COMMANDS: Record<string, Command> = {
   },
   'tables': {
     description: 'List tables in the current database',
+    category: 'Schema',
+    usage: '/tables',
+    detail: "Lists tables in the current database's public schema.",
     run: (ctx) => {
       ctx.onQuery(DB_QUERIES[ctx.driver].tables);
       return { ok: true, message: '' };
@@ -131,13 +183,20 @@ const COMMANDS: Record<string, Command> = {
   },
   'users': {
     description: 'List database users',
+    category: 'Schema',
+    usage: '/users',
+    detail: 'Lists users and their roles. On SQLite, shows a placeholder message since SQLite has no user system.',
     run: (ctx) => {
       ctx.onQuery(DB_QUERIES[ctx.driver].users);
       return { ok: true, message: '' };
     },
   },
   'changeDatabase': {
-    description: 'Switch to a different database: \\c dbname',
+    description: 'Switch to a different database',
+    category: 'Session',
+    usage: '/changeDatabase <dbname>',
+    detail: 'Switches the active connection to the specified database. Without an argument, shows the current database.',
+    example: '/changeDatabase myapp_prod',
     run: (ctx) => {
       if (!ctx.args) return { ok: true, message: `Connected to database: ${ctx.currentDatabase}` };
       ctx.onChangeDatabase(ctx.args.trim());
@@ -145,7 +204,11 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   'export': {
-    description: 'Export last result to a file: /export csv or /export json',
+    description: 'Export last result to a file',
+    category: 'Data',
+    usage: '/export csv|json',
+    detail: 'Writes the last query result to a timestamped file in your home directory. CSV files include a header row; JSON files are an array of row objects.',
+    example: '/export csv',
     run: (ctx) => {
       const fmt = ctx.args.trim().toLowerCase();
       if (fmt !== 'csv' && fmt !== 'json') {
@@ -156,7 +219,11 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   'explain': {
-    description: 'Explain a SQL query using AI: /explain SELECT ...',
+    description: 'Explain a SQL query using AI',
+    category: 'AI',
+    usage: '/explain <SQL>',
+    detail: 'Sends the query to your configured AI endpoint (Ollama by default, or any OpenAI-compatible API) and streams a plain-language explanation.',
+    example: "/explain SELECT * FROM orders WHERE status = 'pending'",
     run: (ctx) => {
       if (!ctx.args) return { ok: false, message: 'Usage: /explain <SQL query>' };
       ctx.onExplain(ctx.args);
@@ -165,6 +232,9 @@ const COMMANDS: Record<string, Command> = {
   },
   'explain-previous': {
     description: 'Explain the last executed query using AI',
+    category: 'AI',
+    usage: '/explain-previous',
+    detail: 'Like /explain but uses the last SQL query you ran. Useful for quickly understanding a query after seeing its results.',
     run: (ctx) => {
       if (!ctx.lastSqlQuery) {
         return { ok: false, message: 'No query to explain — run a SQL query first.' };
@@ -174,7 +244,11 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   'save': {
-    description: 'Save last query as an alias: /save <name>',
+    description: 'Save last query as a named alias',
+    category: 'Aliases',
+    usage: '/save <name>',
+    detail: 'Saves the last executed SQL query as a named alias scoped to the current database. Run it later with /<name>. Supports positional ($1, $2) and named (:param) substitution.',
+    example: '/save active-orders',
     run: (ctx) => {
       const name = ctx.args.trim();
       if (!name) return { ok: false, message: 'Usage: /save <name>' };
@@ -185,7 +259,11 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   'alias': {
-    description: 'Define an alias inline: /alias <name> <SQL>',
+    description: 'Define an alias inline',
+    category: 'Aliases',
+    usage: '/alias <name> <SQL>',
+    detail: 'Defines a named alias without running a query first. Equivalent to /save but lets you specify the SQL directly.',
+    example: '/alias recent SELECT * FROM events ORDER BY created_at DESC LIMIT 20',
     run: (ctx) => {
       const [name, ...rest] = ctx.args.trim().split(/\s+/);
       if (!name || rest.length === 0) return { ok: false, message: 'Usage: /alias <name> <SQL>' };
@@ -196,6 +274,9 @@ const COMMANDS: Record<string, Command> = {
   },
   'aliases': {
     description: 'List all saved aliases for this database',
+    category: 'Aliases',
+    usage: '/aliases',
+    detail: 'Prints all saved aliases for the current database connection, with their SQL template.',
     run: (ctx) => {
       const entries = Object.entries(ctx.aliases);
       if (entries.length === 0) return { ok: true, message: 'No aliases saved. Use /save <name> or /alias <name> <SQL>.' };
@@ -207,7 +288,11 @@ const COMMANDS: Record<string, Command> = {
     },
   },
   'unalias': {
-    description: 'Remove a saved alias: /unalias <name>',
+    description: 'Remove a saved alias',
+    category: 'Aliases',
+    usage: '/unalias <name>',
+    detail: 'Removes a previously saved alias. Only affects aliases for the current database connection.',
+    example: '/unalias active-orders',
     run: (ctx) => {
       const name = ctx.args.trim();
       if (!name) return { ok: false, message: 'Usage: /unalias <name>' };
@@ -215,6 +300,47 @@ const COMMANDS: Record<string, Command> = {
       return removed
         ? { ok: true, message: `Removed /${name}` }
         : { ok: false, message: `No alias named /${name}` };
+    },
+  },
+  'help': {
+    description: 'Show help for all commands or a specific command',
+    category: 'Session',
+    usage: '/help [command]',
+    detail: 'Without arguments, lists all commands grouped by category. With a command name, shows detailed usage and an example.',
+    example: '/help explain',
+    run: (ctx) => {
+      const arg = ctx.args.trim();
+      if (arg) {
+        const name = PSQL_ALIASES[arg] ?? arg;
+        const cmd = COMMANDS[name];
+        if (!cmd) return { ok: false, message: `Unknown command: /${arg}` };
+        const entry: HelpEntry = {
+          name,
+          usage: cmd.usage,
+          description: cmd.description,
+          psqlAlias: PSQL_REVERSE[name],
+          detail: cmd.detail,
+          example: cmd.example,
+        };
+        return { ok: true, message: '', helpData: { mode: 'detail', entry } };
+      }
+
+      const categoryOrder: CommandCategory[] = ['AI', 'Schema', 'Data', 'Aliases', 'Session'];
+      const groups: HelpGroup[] = categoryOrder
+        .map((cat) => ({
+          category: cat,
+          entries: Object.entries(COMMANDS)
+            .filter(([, cmd]) => cmd.category === cat)
+            .map(([name, cmd]) => ({
+              name,
+              usage: cmd.usage,
+              description: cmd.description,
+              psqlAlias: PSQL_REVERSE[name],
+            })),
+        }))
+        .filter((g) => g.entries.length > 0);
+
+      return { ok: true, message: '', helpData: { mode: 'list', groups } };
     },
   },
 };
@@ -250,7 +376,6 @@ export function runCommand(input: string, ctx: Omit<CommandContext, 'args'>): Co
 
   if (cmd) return cmd.run({ ...ctx, args });
 
-  // Fall through to user aliases
   const template = ctx.aliases[rawName];
   if (template) {
     const expanded = expandAlias(template, args);

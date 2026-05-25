@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { Box, Text, Static, useApp, useInput, useStdin } from 'ink';
 import type { ConnectionState, DbResult } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
-import { runCommand } from '../../commands/router.js';
+import { runCommand, type HelpData } from '../../commands/router.js';
 import { runShell } from '../../commands/shell.js';
 import { streamExplain } from '../../ai/client.js';
 import { loadHistory, saveHistory, addToHistory } from '../../config/history.js';
@@ -14,6 +14,7 @@ import { fetchSchema, type Schema } from '../../db/schema.js';
 import { QueryInput } from './QueryInput.js';
 import { QueryResult, ErrorBox } from './QueryResult.js';
 import { Banner } from './Banner.js';
+import { HelpView } from './HelpView.js';
 import { theme } from '../theme.js';
 import type { VimMode } from '../hooks/useVimInput.js';
 
@@ -34,10 +35,12 @@ function limitLines(s: string, n: number): string {
   return lines.slice(0, n).join('\n') + `\n… +${lines.length - n} more lines (scroll up after next submit)`;
 }
 
+type CommandMessage = { text: string; ok: boolean; helpData?: HelpData };
+
 interface Entry {
   id: number;
   query: string;
-  commandMessage: { text: string; ok: boolean } | null;
+  commandMessage: CommandMessage | null;
   queryState: QueryState;
   elapsed: number | null;
   page: number;
@@ -65,9 +68,11 @@ function EntryView({ entry }: { entry: Entry }) {
         ) : (
           <>
             {entry.commandMessage && (
-              entry.commandMessage.ok
-                ? <Text color={theme.accent}>✓ {entry.commandMessage.text}</Text>
-                : <ErrorBox message={entry.commandMessage.text} />
+              entry.commandMessage.helpData
+                ? <HelpView data={entry.commandMessage.helpData} />
+                : entry.commandMessage.ok
+                  ? <Text color={theme.accent}>✓ {entry.commandMessage.text}</Text>
+                  : <ErrorBox message={entry.commandMessage.text} />
             )}
             {showAi ? (
               <Box flexDirection="column">
@@ -112,7 +117,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [inputIsShell, setInputIsShell] = useState(false);
   const [elapsed, setElapsed] = useState<number | null>(null);
   const [vimEnabled, setVimEnabled] = useState(true);
-  const [commandMessage, setCommandMessage] = useState<{ text: string; ok: boolean } | null>(null);
+  const [commandMessage, setCommandMessage] = useState<CommandMessage | null>(null);
   const [history, setHistory] = useState<string[]>(() => loadHistory());
   const [schema, setSchema] = useState<Schema | null>(null);
   const [aiResponse, setAiResponse] = useState<string>('');
@@ -322,7 +327,8 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
       setElapsed(null);
       setPage(0);
       setQueryState({ status: 'idle' });
-      if (result.message) setCommandMessage({ ok: result.ok, text: result.message });
+      if (result.helpData) setCommandMessage({ ok: result.ok, text: '', helpData: result.helpData });
+      else if (result.message) setCommandMessage({ ok: result.ok, text: result.message });
       else setCommandMessage(null);
       return;
     }
@@ -359,9 +365,11 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
               ) : (
                 <>
                   {commandMessage && (
-                    commandMessage.ok
-                      ? <Text color={theme.accent}>✓ {commandMessage.text}</Text>
-                      : <ErrorBox message={commandMessage.text} />
+                    commandMessage.helpData
+                      ? <HelpView data={commandMessage.helpData} />
+                      : commandMessage.ok
+                        ? <Text color={theme.accent}>✓ {commandMessage.text}</Text>
+                        : <ErrorBox message={commandMessage.text} />
                   )}
                   {showAi ? (
                     <Box flexDirection="column">
