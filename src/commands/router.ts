@@ -11,6 +11,7 @@ export interface HelpEntry {
   psqlAlias?: string;
   detail?: string;
   example?: string;
+  examples?: string[];
 }
 
 export interface HelpGroup {
@@ -55,6 +56,7 @@ interface Command {
   usage: string;
   detail?: string;
   example?: string;
+  examples?: string[];
   run: (ctx: CommandContext) => CommandResult;
 }
 
@@ -248,8 +250,12 @@ const COMMANDS: Record<string, Command> = {
     description: 'Save last query as a named alias',
     category: 'Aliases',
     usage: '/save <name>',
-    detail: 'Saves the last executed SQL query as a named alias scoped to the current database. Run it later with /<name>. Supports positional ($1, $2) and named (:param) substitution.',
-    example: '/save active-orders',
+    detail: 'Saves the last executed SQL query as a named alias scoped to the current database. Run it later with /<name>. If the query contains $1, $2 placeholders or :param placeholders, values are substituted at run time.',
+    examples: [
+      '/save active-orders                 (no params — run with /active-orders)',
+      '/save user-by-id                    (query had WHERE id = $1 — run with /user-by-id 42)',
+      '/save by-status                     (query had WHERE status = :status — run with /by-status :status=active)',
+    ],
     run: (ctx) => {
       const name = ctx.args.trim();
       if (!name) return { ok: false, message: 'Usage: /save <name>' };
@@ -263,8 +269,14 @@ const COMMANDS: Record<string, Command> = {
     description: 'Define an alias inline',
     category: 'Aliases',
     usage: '/alias <name> <SQL>',
-    detail: 'Defines a named alias without running a query first. Equivalent to /save but lets you specify the SQL directly.',
-    example: '/alias recent SELECT * FROM events ORDER BY created_at DESC LIMIT 20',
+    detail: 'Defines a named alias without running a query first. Use $1, $2 for positional args or :param for named args — values are substituted when the alias is invoked.',
+    examples: [
+      '/alias recent SELECT * FROM events ORDER BY created_at DESC LIMIT 20',
+      '/alias user SELECT * FROM users WHERE id = $1',
+      '/alias by-email SELECT * FROM users WHERE email = :email',
+      '/user 42                             (positional)',
+      '/by-email :email=alice@example.com   (named)',
+    ],
     run: (ctx) => {
       const [name, ...rest] = ctx.args.trim().split(/\s+/);
       if (!name || rest.length === 0) return { ok: false, message: 'Usage: /alias <name> <SQL>' };
@@ -332,6 +344,7 @@ const COMMANDS: Record<string, Command> = {
           psqlAlias: PSQL_REVERSE[name],
           detail: cmd.detail,
           example: cmd.example,
+          examples: cmd.examples,
         };
         return { ok: true, message: '', helpData: { mode: 'detail', entry } };
       }

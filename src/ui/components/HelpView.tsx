@@ -6,7 +6,7 @@ const USAGE_WIDTH = 28;
 
 export function HelpView({ data }: { data: HelpData }) {
   if (data.mode === 'detail' && data.entry) {
-    const { usage, description, psqlAlias, detail, example } = data.entry;
+    const { usage, description, psqlAlias, detail, example, examples } = data.entry;
     return (
       <Box flexDirection="column" marginTop={1}>
         <Text bold color="white">{usage}{psqlAlias ? `  ${psqlAlias}` : ''}</Text>
@@ -18,12 +18,21 @@ export function HelpView({ data }: { data: HelpData }) {
             <Text dimColor>{detail}</Text>
           </Box>
         )}
-        {example && (
+        {examples && examples.length > 0 ? (
+          <Box flexDirection="column" marginTop={1}>
+            <Text dimColor>Examples:</Text>
+            {examples.map((ex, i) => (
+              <Box key={i} marginLeft={2}>
+                <Text color={theme.accent}>{ex}</Text>
+              </Box>
+            ))}
+          </Box>
+        ) : example ? (
           <Box marginTop={1}>
             <Text dimColor>Example: </Text>
             <Text color={theme.accent}>{example}</Text>
           </Box>
-        )}
+        ) : null}
       </Box>
     );
   }
