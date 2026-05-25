@@ -178,6 +178,16 @@
 - **Done when:** `/erd` on a connected database renders colored table boxes with
   correct PK/FK annotations and a grid that adapts to terminal width
 
+### G.4 — ERD border color + alias multi-examples
+- [x] ERD table borders (╭─┬╮ │ ├┤ ╰┴╯) now use the table's assigned color
+  instead of white, making each table fully color-coded.
+- [x] `/help alias` and `/help save` now render multiple examples via a new
+  `examples?: string[]` field on Command/HelpEntry, covering plain, positional
+  ($1), and named (:param) alias usage.
+- **Depends on:** G.1, G.3
+- **Done when:** `/erd` shows fully colored table boxes; `/help alias` lists all
+  three alias param styles with invocation examples
+
 ### G.2 — Multiline ErrorBox background fix
 - [x] ErrorBox rendered multiline error messages (e.g. the AI config hint) as a
   single `<Text>` node, so the red background only filled the character width of
