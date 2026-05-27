@@ -28,9 +28,10 @@ function FuzzyHighlight({ text, token, selected }: { text: string; token: string
   );
 }
 
-const BG = '#1e1b4b';
+const BG = '#1e1e1e';
 const ACCENT = '#818cf8';
-const PLACEHOLDER = '#6366f1';
+const PROMPT_MUTED = '#6b7280';
+const PLACEHOLDER = '#4b5563';
 const KW_COLOR = '#a5b4fc';
 const STR_COLOR = '#fb923c';
 const NUM_COLOR = '#86efac';
@@ -74,7 +75,7 @@ function SqlHighlightedInput({ text, cursorAt, mode, pad }: { text: string; curs
       if (before) parts.push(<Text key={`${i}b`} backgroundColor={BG} color={color}>{before}</Text>);
       if (mode === 'INSERT') {
         // ▌ replaces the char at cursor — same width as the replaced char.
-        parts.push(<Text key={`${i}c`} backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>);
+        parts.push(<Text key={`${i}c`} backgroundColor={BG} color={PROMPT_MUTED} bold>{'▌'}</Text>);
       } else {
         parts.push(<Text key={`${i}c`} backgroundColor={ACCENT} color={BG} bold>{ch || ' '}</Text>);
       }
@@ -89,7 +90,7 @@ function SqlHighlightedInput({ text, cursorAt, mode, pad }: { text: string; curs
 
   if (!cursorDone) {
     if (mode === 'INSERT') {
-      parts.push(<Text key="c" backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>);
+      parts.push(<Text key="c" backgroundColor={BG} color={PROMPT_MUTED} bold>{'▌'}</Text>);
     } else {
       parts.push(<Text key="c" backgroundColor={ACCENT} color={BG} bold>{' '}</Text>);
     }
@@ -257,7 +258,7 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
                   <Text dimColor>{String(i + 1).padStart(numW)}{' │ '}</Text>
                   <SqlLine text={line} />
                   {isLast && (mode === 'INSERT'
-                    ? <Text color={ACCENT} bold>{'▌'}</Text>
+                    ? <Text color={PROMPT_MUTED} bold>{'▌'}</Text>
                     : <Text backgroundColor={ACCENT} color={BG} bold>{' '}</Text>
                   )}
                 </Box>
@@ -274,18 +275,18 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
 
           {/* Input line */}
           <Box>
-            <Text backgroundColor={BG} color={isShellMode ? theme.shellMode : ACCENT} bold>{isShellMode ? '  $ ' : '  > '}</Text>
+            <Text backgroundColor={BG} color={isShellMode ? theme.shellMode : PROMPT_MUTED} bold>{isShellMode ? '  $ ' : '  > '}</Text>
             {isEmpty ? (
               <>
                 <Text backgroundColor={BG} color={PLACEHOLDER}>{placeholder}</Text>
-                <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
+                <Text backgroundColor={BG} color={PROMPT_MUTED} bold>{'▌'}</Text>
                 <Text backgroundColor={BG}>{emptyPad}</Text>
               </>
             ) : isShellMode || isCommand ? (
               <>
                 <Text backgroundColor={BG}>{visibleBefore}</Text>
                 {mode === 'INSERT' ? (
-                  <Text backgroundColor={BG} color={ACCENT} bold>{'▌'}</Text>
+                  <Text backgroundColor={BG} color={PROMPT_MUTED} bold>{'▌'}</Text>
                 ) : (
                   <Text backgroundColor={ACCENT} color={BG} bold>{cursorChar}</Text>
                 )}
