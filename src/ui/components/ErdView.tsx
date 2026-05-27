@@ -12,6 +12,7 @@ const TABLE_COLORS = [
   '#2dd4bf',
 ];
 
+const BORDER = '#4b5563';
 const PAD = 1;
 const GAP = 2;
 const FK_PREFIX = 'FK → ';
@@ -75,20 +76,20 @@ function TableBox({ table, m, color, colorMap }: TableBoxProps) {
 
   return (
     <Box flexDirection="column">
-      <Text color={color}>{top}</Text>
+      <Text color={BORDER}>{top}</Text>
       <Box>
-        <Text color={color}>{'│'}</Text>
+        <Text color={BORDER}>{'│'}</Text>
         <Text color={color} bold>{sp}{p(table.name, headerW)}{sp}</Text>
-        <Text color={color}>{'│'}</Text>
+        <Text color={BORDER}>{'│'}</Text>
       </Box>
-      <Text color={color}>{sep}</Text>
+      <Text color={BORDER}>{sep}</Text>
       {table.columns.map((col, i) => (
         <Box key={i}>
-          <Text color={color}>{'│'}</Text>
+          <Text color={BORDER}>{'│'}</Text>
           <Text>{sp}{p(col.name, nameW)}{sp}</Text>
-          <Text color={color}>{'│'}</Text>
+          <Text color={BORDER}>{'│'}</Text>
           <Text dimColor>{sp}{p(col.type, typeW)}{sp}</Text>
-          <Text color={color}>{'│'}</Text>
+          <Text color={BORDER}>{'│'}</Text>
           {col.isPk ? (
             <Text bold>{sp}{p('PK', keyW)}{sp}</Text>
           ) : col.fkTable ? (
@@ -99,10 +100,10 @@ function TableBox({ table, m, color, colorMap }: TableBoxProps) {
           ) : (
             <Text>{sp}{' '.repeat(keyW)}{sp}</Text>
           )}
-          <Text color={color}>{'│'}</Text>
+          <Text color={BORDER}>{'│'}</Text>
         </Box>
       ))}
-      <Text color={color}>{bot}</Text>
+      <Text color={BORDER}>{bot}</Text>
     </Box>
   );
 }

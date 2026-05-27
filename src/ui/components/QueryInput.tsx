@@ -302,46 +302,68 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
         </>
       )}
 
-      {/* Suggestions — always reserve MAX_SUGGESTIONS+1 rows while typing so
-          the prompt doesn't jump up/down as completions appear and disappear. */}
-      {!isEmpty && !isShellMode && !isMultiLine && (
-        <Box flexDirection="column" marginTop={1} marginLeft={2}>
-          {suggestions.slice(0, 8).map((name, i) => {
-            const selected = i === suggestionIndex;
-            if (isCommand) {
-              return (
-                <Box key={name}>
-                  <Text>
-                    <Text dimColor={!selected} color={selected ? ACCENT : undefined}>/</Text>
-                    <FuzzyHighlight text={name} token={partial} selected={selected} />
-                  </Text>
-                  <Text dimColor>{'  —  '}{descMap[name]}</Text>
-                </Box>
-              );
-            }
-            return (
-              <Box key={name}>
-                <FuzzyHighlight text={name} token={sqlToken} selected={selected} />
-              </Box>
-            );
-          })}
-          {Array.from({ length: Math.max(0, 8 - suggestions.length) }, (_, i) => (
-            <Text key={`pad-${i}`}>{' '}</Text>
-          ))}
-          <Text dimColor>{suggestions.length > 0 ? 'Tab/↑↓ navigate  Enter select' : ' '}</Text>
-        </Box>
-      )}
+      {/* Bottom: fixed 2-row block — suggestions strip or hints, then nav/empty */}
+      {(() => {
+        const hasSuggestions = !isEmpty && !isShellMode && !isMultiLine && suggestions.length > 0;
+        const VISIBLE = 4;
+        const SEP_W = 3; // '   ' between items
+        const ELLIPSIS_W = 3; // '  …'
+        const prefixW = isCommand ? 1 : 0; // '/' char
+        // available width: termWidth minus marginLeft(2) and ellipsis reservation
+        const availW = termWidth - 2 - ELLIPSIS_W - (VISIBLE - 1) * SEP_W - VISIBLE * prefixW;
+        const maxPerItem = Math.max(6, Math.floor(availW / VISIBLE));
 
-      {/* Hints line */}
-      <Box marginTop={1} flexDirection={hintsInline ? 'row' : 'column'}>
-        {allHints.map(([key, desc], i) => (
-          <Text key={desc}>
-            {hintsInline && i > 0 && <Text dimColor>{'  |  '}</Text>}
-            <Text color={ACCENT} bold>{desc}</Text>
-            <Text dimColor>{`: ${key}`}</Text>
-          </Text>
-        ))}
-      </Box>
+        const winStart = hasSuggestions
+          ? Math.min(Math.max(0, suggestionIndex - 1), Math.max(0, suggestions.length - VISIBLE))
+          : 0;
+        const windowSlice = hasSuggestions ? suggestions.slice(winStart, winStart + VISIBLE) : [];
+
+        function truncate(s: string) {
+          return s.length > maxPerItem ? s.slice(0, maxPerItem - 1) + '…' : s;
+        }
+
+        return (
+          <Box flexDirection="column" marginTop={1}>
+            {/* Row 1 */}
+            <Box marginLeft={2}>
+              {hasSuggestions ? (
+                <>
+                  {windowSlice.map((name, i) => {
+                    const realIdx = winStart + i;
+                    const selected = realIdx === suggestionIndex;
+                    const displayName = truncate(name);
+                    return (
+                      <Text key={name}>
+                        {i > 0 && <Text dimColor>{'   '}</Text>}
+                        {isCommand && <Text dimColor={!selected} color={selected ? ACCENT : undefined}>/</Text>}
+                        <FuzzyHighlight text={displayName} token={isCommand ? partial : sqlToken} selected={selected} />
+                      </Text>
+                    );
+                  })}
+                  {suggestions.length > VISIBLE && <Text dimColor>{'  …'}</Text>}
+                </>
+              ) : (
+                <Box flexDirection={hintsInline ? 'row' : 'column'}>
+                  {allHints.map(([key, desc], i) => (
+                    <Text key={desc}>
+                      {hintsInline && i > 0 && <Text dimColor>{'  |  '}</Text>}
+                      <Text color={ACCENT} bold>{desc}</Text>
+                      <Text dimColor>{`: ${key}`}</Text>
+                    </Text>
+                  ))}
+                </Box>
+              )}
+            </Box>
+            {/* Row 2 */}
+            <Box marginLeft={2}>
+              {hasSuggestions
+                ? <Text dimColor>Tab/↑↓ navigate  Enter select  {suggestionIndex + 1}/{suggestions.length}</Text>
+                : <Text>{' '}</Text>
+              }
+            </Box>
+          </Box>
+        );
+      })()}
     </Box>
   );
 }

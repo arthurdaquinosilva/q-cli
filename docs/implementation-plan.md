@@ -199,6 +199,25 @@
 
 ---
 
+### G.5 — Compact suggestion strip + stable prompt layout
+- [x] Replaced the 9-row suggestion dropdown with a fixed 2-row block shared
+  between suggestions and hints: suggestions show as a compact sliding window
+  of 4 items (with truncation for long names); hints appear when no suggestions
+  are active. Prompt and hints never jump as completions appear or disappear.
+- **Depends on:** F.4
+- **Done when:** typing SQL or a `/command` shows a compact strip with counter
+  (e.g. `2/8`) and Tab/↑↓ cycles through all matches without any layout shift
+
+### G.6 — ERD uniform border color
+- [x] ERD table borders (╭─┬╮ │ ├┤ ╰┴╯) now use a uniform muted gray (`#4b5563`,
+  matching the prompt placeholder) instead of the table's unique color. Table
+  title text retains its unique palette color; FK references still use the
+  referenced table's color.
+- **Depends on:** G.3
+- **Done when:** `/erd` renders tables with gray borders and colored titles only
+
+---
+
 ## Deviations from plan
 
 - B.3 (500-row truncation) implemented as page-based pagination (PAGE_SIZE=50)
