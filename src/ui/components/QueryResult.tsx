@@ -4,25 +4,15 @@ import type { QueryState } from '../../db/query.js';
 import { Table, cellValue, colWidths } from './Table.js';
 import { theme } from '../theme.js';
 
-const ERROR_BG = '#3b0f0f';
 const ERROR_FG = '#ff4444';
 
 export function ErrorBox({ message }: { message: string }) {
-  const cols = Math.max(0, (process.stdout.columns ?? 80) - 2);
-  const blank = ' '.repeat(cols);
   const lines = message.split('\n');
-
   return (
     <Box flexDirection="column" marginTop={1}>
-      <Text backgroundColor={ERROR_BG}>{blank}</Text>
-      {lines.map((line, i) => {
-        const content = (i === 0 ? '  ✗  ' : '     ') + line;
-        const padded = content.length < cols ? content + ' '.repeat(cols - content.length) : content;
-        return (
-          <Text key={i} backgroundColor={ERROR_BG} color={ERROR_FG} bold>{padded}</Text>
-        );
-      })}
-      <Text backgroundColor={ERROR_BG}>{blank}</Text>
+      {lines.map((line, i) => (
+        <Text key={i} color={ERROR_FG} bold>{i === 0 ? '✗  ' : '   '}{line}</Text>
+      ))}
     </Box>
   );
 }
