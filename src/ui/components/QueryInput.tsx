@@ -302,10 +302,11 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
         </>
       )}
 
-      {/* Suggestions */}
-      {suggestions.length > 0 && (
+      {/* Suggestions — always reserve MAX_SUGGESTIONS+1 rows while typing so
+          the prompt doesn't jump up/down as completions appear and disappear. */}
+      {!isEmpty && !isShellMode && !isMultiLine && (
         <Box flexDirection="column" marginTop={1} marginLeft={2}>
-          {suggestions.map((name, i) => {
+          {suggestions.slice(0, 8).map((name, i) => {
             const selected = i === suggestionIndex;
             if (isCommand) {
               return (
@@ -324,7 +325,10 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
               </Box>
             );
           })}
-          <Text dimColor>Tab/↑↓ navigate  Enter select</Text>
+          {Array.from({ length: Math.max(0, 8 - suggestions.length) }, (_, i) => (
+            <Text key={`pad-${i}`}>{' '}</Text>
+          ))}
+          <Text dimColor>{suggestions.length > 0 ? 'Tab/↑↓ navigate  Enter select' : ' '}</Text>
         </Box>
       )}
 
