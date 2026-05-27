@@ -204,24 +204,32 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
 
   const placeholder = 'Type a SQL query…';
 
+  // When a suggestion is selected, preview the completed text in the prompt
+  // while keeping the typed stem in `value` so suggestion filtering stays correct.
+  const previewResult = !isMultiLine && suggestionIndex >= 0 && suggestions.length > 0
+    ? handleSuggestionAccept(value, cursorPos, suggestions[suggestionIndex])
+    : null;
+  const renderValue = previewResult?.value ?? value;
+  const renderCursor = previewResult?.cursor ?? cursorPos;
+
   // Scrolled single-line input: show a lineWidth-wide window around the cursor
   // so the input line never wraps. This avoids both the BG-gap and cursor-at-
   // wrap-boundary bugs that plague multi-line Ink text nodes.
   const lineWidth = innerWidth - 4; // 4 = prompt '  > ' or '  $ '
-  const displayValue = value.slice(dOff);
-  const displayCursor = Math.max(0, cursorPos - dOff);
+  const displayValue = renderValue.slice(dOff);
+  const displayCursor = Math.max(0, renderCursor - dOff);
   // Scroll so the cursor stays at the rightmost visible position when overflowing
   const scrollStart = displayCursor > lineWidth - 1 ? displayCursor - lineWidth + 1 : 0;
 
   // Non-SQL / shell / command path slices
   const visibleBefore = displayValue.slice(scrollStart, displayCursor);
-  const cursorChar = cursorPos < dOff ? ' ' : (displayValue[displayCursor] ?? ' ');
+  const cursorChar = renderCursor < dOff ? ' ' : (displayValue[displayCursor] ?? ' ');
   const visibleAfter = displayValue.slice(displayCursor + 1, scrollStart + lineWidth);
   const textPad = ' '.repeat(Math.max(0, lineWidth - visibleBefore.length - 1 - visibleAfter.length));
 
   // SQL-highlighted path slices (dOff is always 0 for SQL mode)
-  const visibleSql = value.slice(scrollStart, scrollStart + lineWidth);
-  const relativeSqlCursor = cursorPos - scrollStart;
+  const visibleSql = renderValue.slice(scrollStart, scrollStart + lineWidth);
+  const relativeSqlCursor = renderCursor - scrollStart;
   const sqlCursorAtEnd = relativeSqlCursor >= visibleSql.length;
   const sqlPad = ' '.repeat(Math.max(0, lineWidth - visibleSql.length - (sqlCursorAtEnd ? 1 : 0)));
 

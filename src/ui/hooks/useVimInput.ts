@@ -181,7 +181,7 @@ export function useVimInput(
           }
           if (key.leftArrow) return { ...s, cursor: Math.max(0, s.cursor - 1) };
           if (key.rightArrow) return { ...s, cursor: Math.min(s.value.length, s.cursor + 1) };
-          if (key.tab) {
+          if (key.tab && !key.shift) {
             const sugs = getSuggestions?.(s.value, s.cursor) ?? [];
             if (sugs.length > 0) {
               const next = s.suggestionIndex < sugs.length - 1 ? s.suggestionIndex + 1 : 0;
@@ -189,6 +189,14 @@ export function useVimInput(
             }
             const completed = onTab?.(s.value);
             if (completed != null) return { ...s, value: completed, cursor: completed.length };
+            return s;
+          }
+          if (key.tab && key.shift) {
+            const sugs = getSuggestions?.(s.value, s.cursor) ?? [];
+            if (sugs.length > 0) {
+              const next = s.suggestionIndex <= 0 ? sugs.length - 1 : s.suggestionIndex - 1;
+              return { ...s, suggestionIndex: next };
+            }
             return s;
           }
           if (key.ctrl && input === 'e') {
