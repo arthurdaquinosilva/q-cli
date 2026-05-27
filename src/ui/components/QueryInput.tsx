@@ -45,12 +45,12 @@ function sqlTokenColor(type: TokenType): string | undefined {
   return undefined;
 }
 
-function SqlLine({ text }: { text: string }) {
+function SqlLine({ text, bg }: { text: string; bg?: string }) {
   const tokens = tokenizeSql(text);
   return (
     <>
       {tokens.map((tok, i) => (
-        <Text key={i} color={sqlTokenColor(tok.type)}>{tok.text}</Text>
+        <Text key={i} backgroundColor={bg} color={sqlTokenColor(tok.type)}>{tok.text}</Text>
       ))}
     </>
   );
@@ -248,27 +248,28 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
   return (
     <Box flexDirection="column">
       {isMultiLine ? (
-        <Box flexDirection="column">
-          <Box flexDirection="column" borderStyle="round" borderColor={ACCENT} paddingX={1}>
-            {value.split('\n').map((line, i, arr) => {
-              const numW = String(arr.length).length;
-              const isLast = i === arr.length - 1;
-              return (
-                <Box key={i}>
-                  <Text dimColor>{String(i + 1).padStart(numW)}{' │ '}</Text>
-                  <SqlLine text={line} />
-                  {isLast && (mode === 'INSERT'
-                    ? <Text color={PROMPT_MUTED} bold>{'▌'}</Text>
-                    : <Text backgroundColor={ACCENT} color={BG} bold>{' '}</Text>
-                  )}
-                </Box>
-              );
-            })}
-          </Box>
-          <Box marginTop={1}>
-            <Text dimColor>Enter: run  ·  Ctrl+E / e: re-edit</Text>
-          </Box>
-        </Box>
+        <>
+          <Text backgroundColor={BG}>{emptyLine}</Text>
+          {value.split('\n').map((line, i, arr) => {
+            const numW = String(arr.length).length;
+            const prefixWidth = 2 + numW + 3; // "  N │ "
+            const contentWidth = innerWidth - prefixWidth;
+            const isLast = i === arr.length - 1;
+            const linePad = ' '.repeat(Math.max(0, contentWidth - line.length - (isLast ? 1 : 0)));
+            return (
+              <Box key={i}>
+                <Text backgroundColor={BG} dimColor>{'  '}{String(i + 1).padStart(numW)}{' │ '}</Text>
+                <SqlLine text={line} bg={BG} />
+                {isLast && (mode === 'INSERT'
+                  ? <Text backgroundColor={BG} color={PROMPT_MUTED} bold>{'▌'}</Text>
+                  : <Text backgroundColor={ACCENT} color={BG} bold>{' '}</Text>
+                )}
+                <Text backgroundColor={BG}>{linePad}</Text>
+              </Box>
+            );
+          })}
+          <Text backgroundColor={BG}>{emptyLine}</Text>
+        </>
       ) : (
         <>
           <Text backgroundColor={BG}>{emptyLine}</Text>
