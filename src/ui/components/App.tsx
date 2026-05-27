@@ -59,18 +59,34 @@ interface Entry {
   erdData: ErdData | null;
 }
 
+const QUERY_HEADER_COLOR = '#9ca3af';
+
+function QueryHeader({ label, query }: { label: string; query: string }) {
+  const isMultiLine = query.includes('\n');
+  if (isMultiLine) {
+    return (
+      <Box flexDirection="column">
+        <Text><Text color={theme.accent} bold>{'● '}</Text><Text color={QUERY_HEADER_COLOR} bold>{label}:</Text></Text>
+        {query.split('\n').map((line, i) => (
+          <Text key={i} color={QUERY_HEADER_COLOR} bold>{'  '}{line}</Text>
+        ))}
+      </Box>
+    );
+  }
+  return (
+    <Text><Text color={theme.accent} bold>{'● '}</Text><Text color={QUERY_HEADER_COLOR} bold>{label}({query})</Text></Text>
+  );
+}
+
 const EntryView = memo(function EntryView({ entry }: { entry: Entry }) {
   const showAi = entry.aiResponse !== '' || entry.aiError !== null;
   const showErd = entry.erdData !== null;
   const isShell = entry.query.startsWith('!');
   const isCommand = !isShell && (entry.query.startsWith('/') || entry.query.startsWith('\\'));
-  const label = isShell ? 'Shell:' : isCommand ? 'Command:' : 'Query:';
+  const label = isShell ? 'Shell' : isCommand ? 'Command' : 'Query';
   return (
     <Box flexDirection="column" marginBottom={1} paddingX={1}>
-      <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
-        <Text color={theme.accent} bold>{label} </Text>
-        <Text dimColor>{displayQuery(entry.query)}</Text>
-      </Box>
+      <QueryHeader label={label} query={entry.query} />
       <Box marginTop={1} flexDirection="column">
         {isShell ? (
           entry.shellOutput !== null && (
@@ -400,10 +416,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
 
         {lastQuery !== '' && (
           <Box flexDirection="column" marginBottom={2}>
-            <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
-              <Text color={theme.accent} bold>{activeLabel} </Text>
-              <Text dimColor>{displayQuery(lastQuery)}</Text>
-            </Box>
+            <QueryHeader label={activeLabel.replace(':', '')} query={lastQuery} />
             <Box marginTop={1} flexDirection="column">
               {isShellEntry ? (
                 isShellRunning
