@@ -37,6 +37,13 @@ function limitLines(s: string, n: number): string {
   return lines.slice(0, n).join('\n') + `\n… +${lines.length - n} more lines (scroll up after next submit)`;
 }
 
+function displayQuery(query: string): string {
+  const cols = process.stdout.columns ?? 80;
+  const max = Math.max(20, cols - 16);
+  const flat = query.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
+  return flat.length > max ? flat.slice(0, max) + '…' : flat;
+}
+
 type CommandMessage = { text: string; ok: boolean; helpData?: HelpData };
 
 interface Entry {
@@ -62,7 +69,7 @@ function EntryView({ entry }: { entry: Entry }) {
     <Box flexDirection="column" marginBottom={1} paddingX={1}>
       <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
         <Text color={theme.accent} bold>{label} </Text>
-        <Text dimColor>{entry.query}</Text>
+        <Text dimColor>{displayQuery(entry.query)}</Text>
       </Box>
       <Box marginTop={1} flexDirection="column">
         {isShell ? (
@@ -389,7 +396,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
           <Box flexDirection="column" marginBottom={2}>
             <Box borderStyle="round" borderColor={theme.accent} paddingX={1}>
               <Text color={theme.accent} bold>{activeLabel} </Text>
-              <Text dimColor>{lastQuery}</Text>
+              <Text dimColor>{displayQuery(lastQuery)}</Text>
             </Box>
             <Box marginTop={1} flexDirection="column">
               {isShellEntry ? (
