@@ -237,6 +237,23 @@
 
 ---
 
+### G.8 — Scrollback fix + ANSI renderer + ERD layout fix (v0.4.9)
+- [x] Alt screen buffer removed — it was preventing terminal scrollback.
+- [x] `src/ui/format.ts` — new ANSI string renderer module (`fmtEntry`, `fmtQueryResult`,
+  `fmtErd`, `fmtHelp`, `fmtAi`, etc.). Completed entries are pre-formatted as ANSI
+  strings and stored as `{ id, formatted }` in `<Static>` state.
+- [x] Scrollback restored: `<Static>` on the normal screen buffer lets content
+  accumulate and scroll naturally into terminal scrollback.
+- [x] ERD side-by-side layout: shorter tables pad empty rows to full column width
+  so taller adjacent tables stay properly aligned.
+- [x] ERD leading-space: `fmtEntry` adds ` ` prefix to first line of ERD output,
+  matching every other content block.
+- **Depends on:** G.7
+- **Done when:** scrolling up in the terminal after running queries shows full history;
+  `/erd` renders side-by-side tables with correct alignment on all rows
+
+---
+
 ## Deviations from plan
 
 - B.3 (500-row truncation) implemented as page-based pagination (PAGE_SIZE=50)
