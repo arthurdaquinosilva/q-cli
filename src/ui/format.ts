@@ -258,17 +258,6 @@ export function fmtErd(data: ErdData): string {
 
   const allMetrics = data.tables.map(metrics);
 
-  // Group into rows that fit terminal width
-  const rows: number[][] = [];
-  let row: number[] = [], usedW = 0;
-  for (let i = 0; i < allMetrics.length; i++) {
-    const w = allMetrics[i].totalW;
-    if (row.length === 0) { row.push(i); usedW = w; }
-    else if (usedW + GAP + w <= termW) { row.push(i); usedW += GAP + w; }
-    else { rows.push(row); row = [i]; usedW = w; }
-  }
-  if (row.length > 0) rows.push(row);
-
   function renderTable(t: typeof data.tables[0], m: Metrics, color: string): string[] {
     const { nameW, typeW, keyW, totalW } = m;
     const sp = ' '.repeat(PAD);
@@ -304,13 +293,22 @@ export function fmtErd(data: ErdData): string {
     return out;
   }
 
-  // Render rows side by side
+  // Group tables into rows that fit the terminal width left-to-right
+  const rows: number[][] = [];
+  let row: number[] = [], usedW = 0;
+  for (let i = 0; i < allMetrics.length; i++) {
+    const w = allMetrics[i].totalW;
+    if (row.length === 0) { row.push(i); usedW = w; }
+    else if (usedW + GAP + w <= termW) { row.push(i); usedW += GAP + w; }
+    else { rows.push(row); row = [i]; usedW = w; }
+  }
+  if (row.length > 0) rows.push(row);
+
   const output: string[] = [];
   for (const tableRow of rows) {
-    const blocks = tableRow.map((ti) => {
-      const t = data.tables[ti];
-      return renderTable(t, allMetrics[ti], colorMap.get(t.name) ?? ERD_PALETTE[0]);
-    });
+    const blocks = tableRow.map((ti) =>
+      renderTable(data.tables[ti], allMetrics[ti], colorMap.get(data.tables[ti].name) ?? ERD_PALETTE[0])
+    );
     const height = Math.max(...blocks.map((b) => b.length));
     for (let line = 0; line < height; line++) {
       const parts = blocks.map((b, j) => {
