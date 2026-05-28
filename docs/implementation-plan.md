@@ -254,6 +254,14 @@
 
 ---
 
+### G.9 — ERD masonry grid attempt + revert (v0.4.10)
+- [x] Implemented masonry (greedy shortest-column assignment) — reverted because
+  wide + narrow tables in the same column produced large horizontal gaps.
+  Row-packing remains the layout strategy for `/erd`.
+- **Done when:** `/erd` renders cleanly with row-packing as before
+
+---
+
 ## Deviations from plan
 
 - B.3 (500-row truncation) implemented as page-based pagination (PAGE_SIZE=50)
