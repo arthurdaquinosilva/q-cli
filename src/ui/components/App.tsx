@@ -1,8 +1,8 @@
-import { useState, useEffect, useRef, memo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Box, Text, useApp, useInput, useStdin } from 'ink';
+import { Box, Text, useApp, useInput, useStdin, Static } from 'ink';
 import type { ConnectionState, DbResult } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand, type HelpData } from '../../commands/router.js';
@@ -78,7 +78,7 @@ function QueryHeader({ label, query }: { label: string; query: string }) {
   );
 }
 
-const EntryView = memo(function EntryView({ entry }: { entry: Entry }) {
+function EntryView({ entry }: { entry: Entry }) {
   const showAi = entry.aiResponse !== '' || entry.aiError !== null;
   const showErd = entry.erdData !== null;
   const isShell = entry.query.startsWith('!');
@@ -124,7 +124,7 @@ const EntryView = memo(function EntryView({ entry }: { entry: Entry }) {
       </Box>
     </Box>
   );
-});
+}
 
 interface AppProps {
   connectionState: ConnectionState;
@@ -157,7 +157,6 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [erdData, setErdData] = useState<ErdData | null>(null);
   const [isErdLoading, setIsErdLoading] = useState(false);
   const [completedEntries, setCompletedEntries] = useState<Entry[]>([]);
-  const [clearSeq, setClearSeq] = useState(0);
   const entryIdRef = useRef(0);
 
   const aliasScope = connectionState.status === 'connected'
@@ -191,13 +190,6 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     return () => { process.off('SIGCONT', handleCont); };
   }, [isRawModeSupported]);
 
-  // After /clear: Ink's re-render erases the old dynamic content (entries +
-  // prompt) since they are no longer in the tree. We only need to clear the
-  // scrollback so the user can't scroll up and see old output.
-  useEffect(() => {
-    if (clearSeq === 0) return;
-    process.stdout.write('\x1B[3J');
-  }, [clearSeq]);
 
   // Hide the terminal cursor — we render our own ▌ indicator.
   // Restored on unmount so the shell gets its cursor back on exit.
@@ -376,7 +368,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
           setAiError(null);
           setElapsed(null);
           setPage(0);
-          setClearSeq((s) => s + 1);
+          process.stdout.write('\x1B[2J\x1B[H');
         },
         aliases,
         onSaveAlias: handleSaveAlias,
@@ -407,9 +399,9 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
 
   return (
     <Box flexDirection="column">
-      {completedEntries.map((entry) => (
-        <EntryView key={entry.id} entry={entry} />
-      ))}
+      <Static items={completedEntries}>
+        {(entry) => <EntryView key={entry.id} entry={entry} />}
+      </Static>
 
       <Box flexDirection="column" paddingX={1}>
         {lastQuery === '' && <Banner connectionState={connectionState} />}

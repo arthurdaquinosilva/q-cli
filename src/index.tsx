@@ -75,6 +75,11 @@ function Root({ initialDsn, aiUrl, aiModel, aiKey }: RootProps) {
   );
 }
 
+// Enter alternate screen buffer — eliminates flicker and keeps terminal scrollback clean
+process.stdout.write('\x1B[?1049h\x1B[H');
+process.on('exit', () => process.stdout.write('\x1B[?1049l'));
+process.on('SIGTERM', () => process.exit(0));
+
 render(
   <Root initialDsn={initialDsn} aiUrl={aiUrl} aiModel={aiModel} aiKey={aiKey} />,
   { exitOnCtrlC: true },

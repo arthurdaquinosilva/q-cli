@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Text } from 'ink';
 import { useVimInput, type VimMode } from '../hooks/useVimInput.js';
 import { BUILTIN_COMMAND_LIST, getCompletions } from '../../commands/router.js';
@@ -172,10 +172,21 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
   const isShellMode = value.startsWith('!');
   const isCommand = !isShellMode && value.startsWith('/');
   const partial = isCommand ? value.slice(1) : '';
-  const suggestions = isCommand
+
+  // Live suggestions — kept in sync with useVimInput's internal list so the
+  // prompt preview (suggestionIndex → renderValue) is always correct.
+  const liveSuggestions = isCommand
     ? getCompletions(partial, aliases)
     : (!isShellMode && schema ? getSqlCompletions(value, cursorPos, schema) : []);
   const sqlToken = isCommand ? '' : getCurrentToken(value, cursorPos);
+
+  // Debounced suggestions — used only for the strip display to reduce the
+  // number of Ink re-renders while the user is typing quickly.
+  const [suggestions, setSuggestions] = useState<string[]>([]);
+  useEffect(() => {
+    const t = setTimeout(() => setSuggestions(liveSuggestions), 150);
+    return () => clearTimeout(t);
+  }, [value, cursorPos]);
 
   const descMap: Record<string, string> = {
     ...BUILTIN_DESC_MAP,
@@ -207,8 +218,8 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
 
   // When a suggestion is selected, preview the completed text in the prompt
   // while keeping the typed stem in `value` so suggestion filtering stays correct.
-  const previewResult = !isMultiLine && suggestionIndex >= 0 && suggestions.length > 0
-    ? handleSuggestionAccept(value, cursorPos, suggestions[suggestionIndex])
+  const previewResult = !isMultiLine && suggestionIndex >= 0 && liveSuggestions.length > 0
+    ? handleSuggestionAccept(value, cursorPos, liveSuggestions[suggestionIndex])
     : null;
   const renderValue = previewResult?.value ?? value;
   const renderCursor = previewResult?.cursor ?? cursorPos;
@@ -244,6 +255,23 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
     0,
   );
   const hintsInline = totalHintsWidth <= termWidth;
+
+  // Suggestion strip — computed before render so JSX stays structurally stable
+  const STRIP_VISIBLE = 4;
+  const stripPrefixW = isCommand ? 1 : 0;
+  const stripAvailW = termWidth - 2 - 3 /* '  …' */ - (STRIP_VISIBLE - 1) * 3 - STRIP_VISIBLE * stripPrefixW;
+  const stripMaxPerItem = Math.max(6, Math.floor(stripAvailW / STRIP_VISIBLE));
+  const hasSuggestions = !isEmpty && !isShellMode && !isMultiLine && suggestions.length > 0;
+  const stripWinStart = hasSuggestions
+    ? Math.min(Math.max(0, suggestionIndex - 1), Math.max(0, suggestions.length - STRIP_VISIBLE))
+    : 0;
+  const stripWindow = hasSuggestions ? suggestions.slice(stripWinStart, stripWinStart + STRIP_VISIBLE) : [];
+  const stripNavHint = hasSuggestions
+    ? `Tab/↑↓ navigate  Enter select  ${suggestionIndex + 1}/${suggestions.length}`
+    : ' ';
+  function truncateSugg(s: string) {
+    return s.length > stripMaxPerItem ? s.slice(0, stripMaxPerItem - 1) + '…' : s;
+  }
 
   return (
     <Box flexDirection="column">
@@ -303,67 +331,39 @@ export function QueryInput({ onSubmit, isLoading, onModeChange, onShellModeChang
       )}
 
       {/* Bottom: fixed 2-row block — suggestions strip or hints, then nav/empty */}
-      {(() => {
-        const hasSuggestions = !isEmpty && !isShellMode && !isMultiLine && suggestions.length > 0;
-        const VISIBLE = 4;
-        const SEP_W = 3; // '   ' between items
-        const ELLIPSIS_W = 3; // '  …'
-        const prefixW = isCommand ? 1 : 0; // '/' char
-        // available width: termWidth minus marginLeft(2) and ellipsis reservation
-        const availW = termWidth - 2 - ELLIPSIS_W - (VISIBLE - 1) * SEP_W - VISIBLE * prefixW;
-        const maxPerItem = Math.max(6, Math.floor(availW / VISIBLE));
-
-        const winStart = hasSuggestions
-          ? Math.min(Math.max(0, suggestionIndex - 1), Math.max(0, suggestions.length - VISIBLE))
-          : 0;
-        const windowSlice = hasSuggestions ? suggestions.slice(winStart, winStart + VISIBLE) : [];
-
-        function truncate(s: string) {
-          return s.length > maxPerItem ? s.slice(0, maxPerItem - 1) + '…' : s;
-        }
-
-        return (
-          <Box flexDirection="column" marginTop={1}>
-            {/* Row 1 */}
-            <Box marginLeft={2}>
-              {hasSuggestions ? (
-                <>
-                  {windowSlice.map((name, i) => {
-                    const realIdx = winStart + i;
-                    const selected = realIdx === suggestionIndex;
-                    const displayName = truncate(name);
-                    return (
-                      <Text key={name}>
-                        {i > 0 && <Text dimColor>{'   '}</Text>}
-                        {isCommand && <Text dimColor={!selected} color={selected ? ACCENT : undefined}>/</Text>}
-                        <FuzzyHighlight text={displayName} token={isCommand ? partial : sqlToken} selected={selected} />
-                      </Text>
-                    );
-                  })}
-                  {suggestions.length > VISIBLE && <Text dimColor>{'  …'}</Text>}
-                </>
-              ) : (
-                <Box flexDirection={hintsInline ? 'row' : 'column'}>
-                  {allHints.map(([key, desc], i) => (
-                    <Text key={desc}>
-                      {hintsInline && i > 0 && <Text dimColor>{'  |  '}</Text>}
-                      <Text color={ACCENT} bold>{desc}</Text>
-                      <Text dimColor>{`: ${key}`}</Text>
-                    </Text>
-                  ))}
-                </Box>
-              )}
+      <Box flexDirection="column" marginTop={1}>
+        {/* Row 1 */}
+        <Box marginLeft={2}>
+          {hasSuggestions ? (
+            <>
+              {stripWindow.map((name, i) => {
+                const realIdx = stripWinStart + i;
+                const selected = realIdx === suggestionIndex;
+                return (
+                  <Text key={name}>
+                    {i > 0 && <Text dimColor>{'   '}</Text>}
+                    {isCommand && <Text dimColor={!selected} color={selected ? ACCENT : undefined}>/</Text>}
+                    <FuzzyHighlight text={truncateSugg(name)} token={isCommand ? partial : sqlToken} selected={selected} />
+                  </Text>
+                );
+              })}
+              {suggestions.length > STRIP_VISIBLE && <Text dimColor>{'  …'}</Text>}
+            </>
+          ) : (
+            <Box flexDirection={hintsInline ? 'row' : 'column'}>
+              {allHints.map(([key, desc], i) => (
+                <Text key={desc}>
+                  {hintsInline && i > 0 && <Text dimColor>{'  |  '}</Text>}
+                  <Text color={ACCENT} bold>{desc}</Text>
+                  <Text dimColor>{`: ${key}`}</Text>
+                </Text>
+              ))}
             </Box>
-            {/* Row 2 */}
-            <Box marginLeft={2}>
-              {hasSuggestions
-                ? <Text dimColor>Tab/↑↓ navigate  Enter select  {suggestionIndex + 1}/{suggestions.length}</Text>
-                : <Text>{' '}</Text>
-              }
-            </Box>
-          </Box>
-        );
-      })()}
+          )}
+        </Box>
+        {/* Row 2 */}
+        <Text dimColor>{stripNavHint}</Text>
+      </Box>
     </Box>
   );
 }

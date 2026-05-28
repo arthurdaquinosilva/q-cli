@@ -199,6 +199,25 @@
 
 ---
 
+### G.7 — Alt screen buffer + Static history + version embed
+- [x] Enter alternate screen buffer (`\x1B[?1049h`) on startup so the querky UI
+  occupies a dedicated layer; original terminal content is fully restored on exit
+  (`\x1B[?1049l` via `process.on('exit')`).
+- [x] History entries moved back to `<Static>` — Ink prints each completed entry
+  once and never rewrites it on keystrokes; only the active prompt area
+  (~15 lines) is redrawn per render, eliminating the large-output flicker.
+- [x] `/clear` simplified: `\x1B[2J\x1B[H` wipes the entire alt screen
+  (including Static content) then Ink re-renders from the top. `clearSeq` state
+  and its `useEffect` removed.
+- [x] Version string embedded at build time via tsup `define` (`__PKG_VERSION__`)
+  so the banner shows the correct version when installed globally.
+  Dev fallback uses `process.env.npm_package_version`.
+- [x] Suggestion strip debounced 150 ms — live suggestions still drive the prompt
+  preview; the displayed strip lags slightly to cut render churn during fast typing.
+- **Depends on:** G.5
+- **Done when:** typing fast after `/erd` produces no full-screen flicker; banner
+  shows correct version; `/clear` wipes screen cleanly; quitting restores terminal
+
 ### G.5 — Compact suggestion strip + stable prompt layout
 - [x] Replaced the 9-row suggestion dropdown with a fixed 2-row block shared
   between suggestions and hints: suggestions show as a compact sliding window

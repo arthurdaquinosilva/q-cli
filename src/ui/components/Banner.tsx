@@ -1,15 +1,9 @@
 import { Box, Text } from 'ink';
-import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
 import type { ConnectionState } from '../../db/client.js';
 import { theme } from '../theme.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-let pkg = { version: 'unknown' };
-try {
-  pkg = JSON.parse(readFileSync(join(__dirname, '../../../package.json'), 'utf8')) as { version: string };
-} catch { /* non-critical */ }
+declare const __PKG_VERSION__: string;
+const version = typeof __PKG_VERSION__ !== 'undefined' ? __PKG_VERSION__ : (process.env.npm_package_version ?? 'unknown');
 
 const LOGO = [
   ' ▗▄▄▄▄▄▖',
@@ -48,7 +42,7 @@ export function Banner({ connectionState }: BannerProps) {
       {/* Info — aligned to top, matches logo line by line */}
       <Box flexDirection="column">
         <Text bold color={theme.accent}>
-          Querky <Text dimColor>v{pkg.version}</Text>
+          Querky <Text dimColor>v{version}</Text>
         </Text>
         <Text> </Text>
         {isConnected ? (
