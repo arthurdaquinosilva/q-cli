@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import { Box, Text, useApp, useInput, useStdin, Static } from 'ink';
+import { Box, Static, Text, useApp, useInput, useStdin } from 'ink';
 import type { ConnectionState, DbResult } from '../../db/client.js';
 import { runQuery, type QueryState } from '../../db/query.js';
 import { runCommand, type HelpData } from '../../commands/router.js';
@@ -13,53 +13,20 @@ import { loadHistory, saveHistory, addToHistory } from '../../config/history.js'
 import { getAllAliases, saveAlias, deleteAlias, makeScope } from '../../config/aliases.js';
 import { fetchSchema, type Schema } from '../../db/schema.js';
 import { QueryInput } from './QueryInput.js';
-import { QueryResult, ErrorBox } from './QueryResult.js';
+import { ErrorBox } from './QueryResult.js';
 import { Banner } from './Banner.js';
-import { HelpView } from './HelpView.js';
-import { ErdView } from './ErdView.js';
 import { theme } from '../theme.js';
 import type { VimMode } from '../hooks/useVimInput.js';
+import { fmtEntry, type EntryData } from '../format.js';
 
-const PAGE_SIZE = 50;
 const PLACEHOLDER = '#a5b4fc';
-
-// Limit what the live result area shows so the dynamic region (result +
-// QueryInput ~9 lines + mode indicator ~2 lines + entry chrome ~5 lines)
-// stays within terminal height.  Full output lands in the static scrollback
-// history after the next submit.  Minimum 3 so there is always something.
-function activePageSize(): number {
-  return Math.max(3, (process.stdout.rows ?? 24) - 21);
-}
-
-function limitLines(s: string, n: number): string {
-  const lines = s.split('\n');
-  if (lines.length <= n) return s;
-  return lines.slice(0, n).join('\n') + `\n… +${lines.length - n} more lines (scroll up after next submit)`;
-}
-
-function displayQuery(query: string): string {
-  const cols = process.stdout.columns ?? 80;
-  const max = Math.max(20, cols - 16);
-  const flat = query.replace(/\n/g, ' ').replace(/\s+/g, ' ').trim();
-  return flat.length > max ? flat.slice(0, max) + '…' : flat;
-}
-
-type CommandMessage = { text: string; ok: boolean; helpData?: HelpData };
-
-interface Entry {
-  id: number;
-  query: string;
-  commandMessage: CommandMessage | null;
-  queryState: QueryState;
-  elapsed: number | null;
-  page: number;
-  aiResponse: string;
-  aiError: string | null;
-  shellOutput: string | null;
-  erdData: ErdData | null;
-}
-
 const QUERY_HEADER_COLOR = '#9ca3af';
+
+// What the dynamic (prompt) area shows while work is in flight
+type ActiveState =
+  | { type: 'idle' }
+  | { type: 'loading'; label: string; query: string }
+  | { type: 'streaming'; query: string; text: string; error: string | null };
 
 function QueryHeader({ label, query }: { label: string; query: string }) {
   const isMultiLine = query.includes('\n');
@@ -78,54 +45,6 @@ function QueryHeader({ label, query }: { label: string; query: string }) {
   );
 }
 
-function EntryView({ entry }: { entry: Entry }) {
-  const showAi = entry.aiResponse !== '' || entry.aiError !== null;
-  const showErd = entry.erdData !== null;
-  const isShell = entry.query.startsWith('!');
-  const isCommand = !isShell && (entry.query.startsWith('/') || entry.query.startsWith('\\'));
-  const label = isShell ? 'Shell' : isCommand ? 'Command' : 'Query';
-  return (
-    <Box flexDirection="column" marginBottom={1} paddingX={1}>
-      <QueryHeader label={label} query={entry.query} />
-      <Box marginTop={1} flexDirection="column">
-        {isShell ? (
-          entry.shellOutput !== null && (
-            <Text>{entry.shellOutput || '(no output)'}</Text>
-          )
-        ) : (
-          <>
-            {entry.commandMessage && (
-              entry.commandMessage.helpData
-                ? <HelpView data={entry.commandMessage.helpData} />
-                : entry.commandMessage.ok
-                  ? <Text color={theme.accent}>✓ {entry.commandMessage.text}</Text>
-                  : <ErrorBox message={entry.commandMessage.text} />
-            )}
-            {showErd ? (
-              <ErdView data={entry.erdData!} />
-            ) : showAi ? (
-              <Box flexDirection="column">
-                <Text color={theme.accent} bold>Explanation:</Text>
-                <Box flexDirection="column" marginTop={1}>
-                  {entry.aiError ? (
-                    <ErrorBox message={entry.aiError} />
-                  ) : (
-                    <Text color={PLACEHOLDER}>{entry.aiResponse}</Text>
-                  )}
-                </Box>
-              </Box>
-            ) : (
-              !entry.commandMessage && (
-                <QueryResult state={entry.queryState} elapsed={entry.elapsed} page={entry.page} pageSize={PAGE_SIZE} />
-              )
-            )}
-          </>
-        )}
-      </Box>
-    </Box>
-  );
-}
-
 interface AppProps {
   connectionState: ConnectionState;
   aiUrl: string;
@@ -137,27 +56,19 @@ interface AppProps {
 export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }: AppProps) {
   const { exit } = useApp();
   const { isRawModeSupported } = useStdin();
-  const [queryState, setQueryState] = useState<QueryState>({ status: 'idle' });
-  const [lastQuery, setLastQuery] = useState<string>('');
-  const [lastSqlQuery, setLastSqlQuery] = useState<string>('');
+
+  const [active, setActive] = useState<ActiveState>({ type: 'idle' });
+  const [hasHistory, setHasHistory] = useState(false);
+  const [completedEntries, setCompletedEntries] = useState<Array<{ id: string; formatted: string }>>([]);
+  const entryIdRef = useRef(0);
+  const [lastSqlQuery, setLastSqlQuery] = useState('');
   const [lastResult, setLastResult] = useState<DbResult | null>(null);
-  const [page, setPage] = useState(0);
+  const [lastResultPage, setLastResultPage] = useState(0);
   const [vimMode, setVimMode] = useState<VimMode>('INSERT');
   const [inputIsShell, setInputIsShell] = useState(false);
-  const [elapsed, setElapsed] = useState<number | null>(null);
   const [vimEnabled, setVimEnabled] = useState(true);
-  const [commandMessage, setCommandMessage] = useState<CommandMessage | null>(null);
   const [history, setHistory] = useState<string[]>(() => loadHistory());
   const [schema, setSchema] = useState<Schema | null>(null);
-  const [aiResponse, setAiResponse] = useState<string>('');
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-  const [shellOutput, setShellOutput] = useState<string | null>(null);
-  const [isShellRunning, setIsShellRunning] = useState(false);
-  const [erdData, setErdData] = useState<ErdData | null>(null);
-  const [isErdLoading, setIsErdLoading] = useState(false);
-  const [completedEntries, setCompletedEntries] = useState<Entry[]>([]);
-  const entryIdRef = useRef(0);
 
   const aliasScope = connectionState.status === 'connected'
     ? makeScope(connectionState.driver, connectionState.user, connectionState.host, connectionState.database)
@@ -165,6 +76,13 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
   const [aliases, setAliases] = useState<Record<string, string>>(() =>
     aliasScope ? getAllAliases(aliasScope) : {}
   );
+
+  function writeEntry(entry: EntryData) {
+    const formatted = fmtEntry(entry);
+    const id = String(++entryIdRef.current);
+    setCompletedEntries(prev => [...prev, { id, formatted }]);
+    setHasHistory(true);
+  }
 
   function handleSaveAlias(name: string, query: string) {
     saveAlias(aliasScope, name, query);
@@ -190,9 +108,6 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     return () => { process.off('SIGCONT', handleCont); };
   }, [isRawModeSupported]);
 
-
-  // Hide the terminal cursor — we render our own ▌ indicator.
-  // Restored on unmount so the shell gets its cursor back on exit.
   useEffect(() => {
     if (!isRawModeSupported) return;
     process.stdout.write('\x1B[?25l');
@@ -211,68 +126,55 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
     { isActive: isRawModeSupported },
   );
 
-  async function handleExplain(query: string) {
-    setAiResponse('');
-    setAiError(null);
-    setIsStreaming(true);
-    setCommandMessage(null);
-    setQueryState({ status: 'idle' });
-    try {
-      for await (const chunk of streamExplain(query, aiUrl, aiModel, aiKey || undefined)) {
-        setAiResponse((prev) => prev + chunk);
-      }
-    } catch (err) {
-      setAiError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setIsStreaming(false);
-    }
-  }
-
-  async function handleErd() {
-    if (connectionState.status !== 'connected') {
-      setCommandMessage({ ok: false, text: 'Not connected to a database.' });
-      return;
-    }
-    setErdData(null);
-    setIsErdLoading(true);
-    setCommandMessage(null);
-    setQueryState({ status: 'idle' });
-    setAiResponse('');
-    setAiError(null);
-    try {
-      const data = await fetchErd(connectionState.client, connectionState.driver);
-      setErdData(data);
-    } catch (err) {
-      setCommandMessage({ ok: false, text: err instanceof Error ? err.message : String(err) });
-    } finally {
-      setIsErdLoading(false);
-    }
-  }
-
   async function handleQuery(sql: string) {
     if (connectionState.status !== 'connected') return;
-    setErdData(null);
-    setAiResponse('');
-    setAiError(null);
-    setCommandMessage(null);
-    setLastQuery(sql);
     setLastSqlQuery(sql);
-    setElapsed(null);
-    setPage(0);
-    setQueryState({ status: 'running' });
+    setActive({ type: 'loading', label: 'Query', query: sql });
     const updated = addToHistory(history, sql);
     setHistory(updated);
     saveHistory(updated);
     const start = Date.now();
     const result = await runQuery(connectionState.client, sql);
-    setElapsed(Date.now() - start);
-    setQueryState(result);
-    if (result.status === 'success') setLastResult(result.result);
+    const elapsed = Date.now() - start;
+    if (result.status === 'success') { setLastResult(result.result); setLastResultPage(0); }
+    writeEntry({ query: sql, commandMessage: null, queryState: result, elapsed, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
+    setActive({ type: 'idle' });
+  }
+
+  async function handleErd() {
+    if (connectionState.status !== 'connected') {
+      writeEntry({ query: '/erd', commandMessage: { ok: false, text: 'Not connected.' }, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
+      return;
+    }
+    setActive({ type: 'loading', label: 'Command', query: '/erd' });
+    try {
+      const data = await fetchErd(connectionState.client, connectionState.driver);
+      writeEntry({ query: '/erd', commandMessage: null, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: data });
+    } catch (err) {
+      writeEntry({ query: '/erd', commandMessage: { ok: false, text: err instanceof Error ? err.message : String(err) }, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
+    }
+    setActive({ type: 'idle' });
+  }
+
+  async function handleExplain(query: string) {
+    setActive({ type: 'streaming', query, text: '', error: null });
+    let fullText = '';
+    let error: string | null = null;
+    try {
+      for await (const chunk of streamExplain(query, aiUrl, aiModel, aiKey || undefined)) {
+        fullText += chunk;
+        setActive({ type: 'streaming', query, text: fullText, error: null });
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+    writeEntry({ query: '/explain', commandMessage: null, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: fullText, aiError: error, shellOutput: null, erdData: null });
+    setActive({ type: 'idle' });
   }
 
   function handleExport(format: 'csv' | 'json') {
     if (!lastResult || lastResult.rows.length === 0) {
-      setCommandMessage({ ok: false, text: 'No results to export — run a query first.' });
+      writeEntry({ query: `/export ${format}`, commandMessage: { ok: false, text: 'No results to export — run a query first.' }, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
       return;
     }
     const ts = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
@@ -283,7 +185,7 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
       } else {
         const header = lastResult.fields.join(',');
         const rows = lastResult.rows.map((row) =>
-          lastResult.fields.map((f) => {
+          lastResult!.fields.map((f) => {
             const v = row[f];
             if (v === null || v === undefined) return '';
             const s = String(v);
@@ -293,56 +195,39 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         );
         writeFileSync(filename, [header, ...rows].join('\n'));
       }
-      setCommandMessage({ ok: true, text: `Exported to ${filename}` });
+      writeEntry({ query: `/export ${format}`, commandMessage: { ok: true, text: `Exported to ${filename}` }, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
     } catch (err) {
-      setCommandMessage({ ok: false, text: err instanceof Error ? err.message : String(err) });
+      writeEntry({ query: `/export ${format}`, commandMessage: { ok: false, text: err instanceof Error ? err.message : String(err) }, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
     }
   }
 
-  function snapshotActiveEntry() {
-    if (lastQuery === '') return;
-    setCompletedEntries((prev) => [
-      ...prev,
-      {
-        id: entryIdRef.current++,
-        query: lastQuery,
-        commandMessage,
-        queryState,
-        elapsed,
-        page,
-        aiResponse,
-        aiError,
-        shellOutput,
-        erdData,
-      },
-    ]);
-  }
-
   async function handleShell(cmd: string) {
-    setErdData(null);
-    setShellOutput(null);
-    setIsShellRunning(true);
-    setCommandMessage(null);
-    setAiResponse('');
-    setAiError(null);
-    setQueryState({ status: 'idle' });
+    const q = `!${cmd}`;
+    setActive({ type: 'loading', label: 'Shell', query: q });
     const result = await runShell(cmd);
     const combined = [result.stdout, result.stderr].filter(Boolean).join('\n');
-    setShellOutput(combined || '(no output)');
-    setIsShellRunning(false);
+    writeEntry({ query: q, commandMessage: null, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: combined || '(no output)', erdData: null });
+    setActive({ type: 'idle' });
   }
 
   async function handleSubmit(sql: string) {
-    if (sql === '/next') { setPage((p) => p + 1); return; }
-    if (sql === '/prev') { setPage((p) => Math.max(0, p - 1)); return; }
-
-    snapshotActiveEntry();
+    if (sql === '/next') {
+      if (!lastResult) return;
+      const p = lastResultPage + 1;
+      setLastResultPage(p);
+      writeEntry({ query: '/next', commandMessage: null, queryState: { status: 'success', result: lastResult }, elapsed: null, page: p, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
+      return;
+    }
+    if (sql === '/prev') {
+      if (!lastResult || lastResultPage === 0) return;
+      const p = lastResultPage - 1;
+      setLastResultPage(p);
+      writeEntry({ query: '/prev', commandMessage: null, queryState: { status: 'success', result: lastResult }, elapsed: null, page: p, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
+      return;
+    }
 
     if (sql.startsWith('!')) {
-      const cmd = sql.slice(1).trim();
-      setLastQuery(sql);
-      setShellOutput(null);
-      void handleShell(cmd);
+      void handleShell(sql.slice(1).trim());
       return;
     }
 
@@ -360,94 +245,65 @@ export function App({ connectionState, aiUrl, aiModel, aiKey, onChangeDatabase }
         onErd: () => { void handleErd(); },
         onClear: () => {
           setCompletedEntries([]);
-          setLastQuery('');
-          setCommandMessage(null);
-          setQueryState({ status: 'idle' });
-          setShellOutput(null);
-          setAiResponse('');
-          setAiError(null);
-          setElapsed(null);
-          setPage(0);
-          process.stdout.write('\x1B[2J\x1B[H');
+          setHasHistory(false);
+          setActive({ type: 'idle' });
+          process.stdout.write('\x1B[H\x1B[2J\x1B[3J');
         },
         aliases,
         onSaveAlias: handleSaveAlias,
         onDeleteAlias: handleDeleteAlias,
       });
       if (result.cleared) return;
-      setLastQuery(sql);
-      setErdData(null);
-      setAiResponse('');
-      setAiError(null);
-      setElapsed(null);
-      setPage(0);
-      setQueryState({ status: 'idle' });
-      if (result.helpData) setCommandMessage({ ok: result.ok, text: '', helpData: result.helpData });
-      else if (result.message) setCommandMessage({ ok: result.ok, text: result.message });
-      else setCommandMessage(null);
+      // Commands that trigger async handlers (erd, explain, query) manage their
+      // own active state — only add an entry if there's a direct message/help result.
+      if (result.helpData) {
+        writeEntry({ query: sql, commandMessage: { ok: result.ok, text: '', helpData: result.helpData }, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
+      } else if (result.message) {
+        writeEntry({ query: sql, commandMessage: { ok: result.ok, text: result.message }, queryState: { status: 'idle' }, elapsed: null, page: 0, aiResponse: '', aiError: null, shellOutput: null, erdData: null });
+      }
       return;
     }
+
     void handleQuery(sql);
   }
 
-  const isLoading = queryState.status === 'running' || isStreaming || isShellRunning || isErdLoading;
+  const isLoading = active.type !== 'idle';
   const isConnected = connectionState.status === 'connected';
-  const showAi = aiResponse !== '' || isStreaming || aiError !== null;
-  const isShellEntry = lastQuery.startsWith('!');
-  const isCommand = !isShellEntry && (lastQuery.startsWith('/') || lastQuery.startsWith('\\'));
-  const activeLabel = isShellEntry ? 'Shell:' : isCommand ? 'Command:' : 'Query:';
 
   return (
     <Box flexDirection="column">
       <Static items={completedEntries}>
-        {(entry) => <EntryView key={entry.id} entry={entry} />}
+        {({ id, formatted }) => (
+          <Box key={id}>
+            <Text>{formatted}</Text>
+          </Box>
+        )}
       </Static>
-
       <Box flexDirection="column" paddingX={1}>
-        {lastQuery === '' && <Banner connectionState={connectionState} />}
+        {!hasHistory && active.type === 'idle' && (
+          <Banner connectionState={connectionState} />
+        )}
 
-        {lastQuery !== '' && (
-          <Box flexDirection="column" marginBottom={2}>
-            <QueryHeader label={activeLabel.replace(':', '')} query={lastQuery} />
-            <Box marginTop={1} flexDirection="column">
-              {isShellEntry ? (
-                isShellRunning
-                  ? <Text dimColor>running…</Text>
-                  : <Text>{limitLines(shellOutput ?? '', activePageSize())}</Text>
-              ) : (
-                <>
-                  {commandMessage && (
-                    commandMessage.helpData
-                      ? <HelpView data={commandMessage.helpData} />
-                      : commandMessage.ok
-                        ? <Text color={theme.accent}>✓ {commandMessage.text}</Text>
-                        : <ErrorBox message={commandMessage.text} />
-                  )}
-                  {isErdLoading ? (
-                    <Text dimColor>Fetching schema…</Text>
-                  ) : erdData ? (
-                    <ErdView data={erdData} />
-                  ) : showAi ? (
-                    <Box flexDirection="column">
-                      <Text color={theme.accent} bold>Explanation:</Text>
-                      <Box flexDirection="column" marginTop={1}>
-                        {aiError ? (
-                          <ErrorBox message={aiError} />
-                        ) : (
-                          <Text color={PLACEHOLDER}>
-                            {aiResponse}
-                            {isStreaming && <Text color={PLACEHOLDER}>{'▋'}</Text>}
-                          </Text>
-                        )}
-                      </Box>
-                    </Box>
-                  ) : (
-                    !commandMessage && (
-                      <QueryResult state={queryState} elapsed={elapsed} page={page} pageSize={activePageSize()} />
-                    )
-                  )}
-                </>
-              )}
+        {/* Loading indicator — replaces the large active-result block */}
+        {active.type === 'loading' && (
+          <Box flexDirection="column" marginBottom={1}>
+            <QueryHeader label={active.label} query={active.query} />
+            <Text dimColor> running…</Text>
+          </Box>
+        )}
+
+        {/* Streaming AI — grows while streaming, committed to Static on done */}
+        {active.type === 'streaming' && (
+          <Box flexDirection="column" marginBottom={1}>
+            <QueryHeader label="Query" query={active.query} />
+            <Box flexDirection="column" marginTop={1}>
+              <Text color={theme.accent} bold>Explanation:</Text>
+              <Box marginTop={1}>
+                {active.error
+                  ? <ErrorBox message={active.error} />
+                  : <Text color={PLACEHOLDER}>{active.text}<Text color={PLACEHOLDER}>▋</Text></Text>
+                }
+              </Box>
             </Box>
           </Box>
         )}
